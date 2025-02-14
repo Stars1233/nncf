@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -97,7 +97,8 @@ class MobileNetSSD(nn.Module):
 
 def build_ssd_mobilenet(cfg, size, num_classes, config):
     if size != 300:
-        raise ValueError("Only Mobilenet-SSD with input size 300 is supported")
+        msg = "Only Mobilenet-SSD with input size 300 is supported"
+        raise ValueError(msg)
     mobilenet_ssd = MobileNetSSD(num_classes, cfg)
 
     if config.basenet and (config.resuming_checkpoint_path is None) and (config.weights is None):

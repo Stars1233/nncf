@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -89,7 +89,8 @@ class PTNNCFGraph(NNCFGraph):
                 matches.append(Scope.from_str(scope_str))
         assert len(matches) <= 1
         if not matches:
-            raise nncf.InternalError("Node name {} not found in the node-vs-scope dict!".format(node_name))
+            msg = f"Node name {node_name} not found in the node-vs-scope dict!"
+            raise nncf.InternalError(msg)
         return matches[0]
 
     def get_nodes_with_missed_input_edges(self) -> List[NNCFNode]:

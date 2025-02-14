@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,8 +11,11 @@
 from typing import Any
 
 import torch
+from torch.overrides import handle_torch_function
+from torch.overrides import has_torch_function_unary
 
 from nncf.common.logging import nncf_logger
+from nncf.errors import ValidationError
 from nncf.torch.dynamic_graph.patch_pytorch import register_operator
 from nncf.torch.functions import STRound
 from nncf.torch.functions import clamp
@@ -192,6 +195,10 @@ def get_scale_zp_from_input_low_input_high(level_low, level_high, input_low, inp
 
 @register_operator()
 def symmetric_quantize(input_, levels, level_low, level_high, scale, eps, skip: bool = False):
+    if has_torch_function_unary(input_):
+        return handle_torch_function(
+            symmetric_quantize, (input_,), input_, levels, level_low, level_high, scale, eps, skip
+        )
     if skip:
         return input_
     scale = scale.to(dtype=input_.dtype)
@@ -201,6 +208,10 @@ def symmetric_quantize(input_, levels, level_low, level_high, scale, eps, skip: 
 
 @register_operator()
 def asymmetric_quantize(input_, levels, level_low, level_high, input_low, input_range, eps, skip: bool = False):
+    if has_torch_function_unary(input_):
+        return handle_torch_function(
+            asymmetric_quantize, (input_,), input_, levels, level_low, level_high, input_low, input_range, eps, skip
+        )
     if skip:
         return input_
     input_range_safe = abs(input_range) + eps
@@ -259,6 +270,7 @@ def decompress_asymmetric(input: torch.Tensor, scale: torch.Tensor, zero_point: 
     :return: The decompressed tensor
     """
     input = input.type(dtype=scale.dtype)
+    zero_point = zero_point.type(dtype=scale.dtype)
     decompressed_input = (input - zero_point) * scale
     return decompressed_input
 
@@ -275,3 +287,64 @@ def decompress_symmetric(input: torch.Tensor, scale: torch.Tensor) -> torch.Tens
     input = input.type(dtype=scale.dtype)
     decompressed_input = input * scale
     return decompressed_input
+
+
+def pack_uint4(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Packs a tensor containing uint4 values (in the range [0, 15]) into a tensor with uint8 values,
+    where each element stores two uint4 values.
+
+    :param tensor: A tensor of dtype `torch.uint8` where each element represents a uint4 value.
+        The tensor should contain values in the range [0, 15].
+    :return: A packed tensor of dtype `torch.uint8` where each element packs two uint4 values.
+    :raises nncf.errors.ValidationError: If the input tensor is not of type `torch.uint8`.
+    """
+    if tensor.dtype != torch.uint8:
+        msg = f"Invalid tensor dtype {tensor.type}. torch.uint8 type is supported."
+        raise ValidationError(msg)
+    packed_tensor = tensor.contiguous()
+    packed_tensor = packed_tensor.reshape(-1, 2)
+    packed_tensor = torch.bitwise_and(packed_tensor[..., ::2], 15) | packed_tensor[..., 1::2] << 4
+    return packed_tensor
+
+
+@register_operator()
+def unpack_uint4(packed_tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Unpacks a tensor, where each uint8 element stores two uint4 values, back into a tensor with
+    individual uint4 values.
+
+    :param packed_tensor: A tensor of dtype `torch.uint8` where each element packs two uint4 values.
+    :return: A tensor of dtype `torch.uint8` where each element represents a uint4 value.
+    """
+    return torch.stack((torch.bitwise_and(packed_tensor, 15), torch.bitwise_right_shift(packed_tensor, 4)), dim=-1)
+
+
+def pack_int4(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Packs a tensor containing int4 values (in the range [-8, 7]) into a tensor with uint8 values,
+    where each element stores two int4 values.
+
+    :param tensor: A tensor of dtype `torch.int8` where each element represents an int4 value.
+        The tensor should contain values in the range [-8, 7].
+    :return: A packed tensor of dtype `torch.uint8` where each element packs two int4 values.
+    :raises nncf.errors.ValidationError: If the input tensor is not of type `torch.int8`.
+    """
+    if tensor.dtype != torch.int8:
+        msg = f"Invalid tensor dtype {tensor.type}. torch.int8 type is supported."
+        raise ValidationError(msg)
+    tensor = tensor + 8
+    return pack_uint4(tensor.type(torch.uint8))
+
+
+@register_operator()
+def unpack_int4(packed_tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Unpacks a tensor, where each uint8 element stores two int4 values, back into a tensor with
+    individual int4 values.
+
+    :param packed_tensor: A tensor of dtype `torch.uint8` where each element packs two int4 values.
+    :return: A tensor of dtype `torch.int8` where each element represents an int4 value.
+    """
+    t = unpack_uint4(packed_tensor)
+    return t.type(torch.int8) - 8

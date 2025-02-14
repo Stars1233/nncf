@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -54,7 +54,7 @@ class TargetType(IntEnum):
     `PRE_LAYER_OPERATION` - a location before the associated PT-module or TF-layer
                             execution, for which the local attributes of said
                             PT-module or TF-layer are accessible
-    `POST_LAYER_OPERATION` - a location before the associated PT-module or TF-layer
+    `POST_LAYER_OPERATION` - a location after the associated PT-module or TF-layer
                              execution, for which the local attributes of said
                              PT-module or TF-layer are accessible
     `OPERATION_WITH_WEIGHTS` - same as PRE_LAYER_OPERATION, but targets weights

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -9,7 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -17,8 +17,11 @@ import torch
 from nncf.common.graph import NNCFGraph
 from nncf.common.graph import NNCFNode
 from nncf.common.graph.definitions import NNCFGraphNodeType
+from nncf.common.graph.model_transformer import ModelTransformer
 from nncf.common.graph.transformations.commands import TargetType
 from nncf.experimental.common.tensor_statistics.collectors import TensorCollector
+from nncf.experimental.torch2.function_hook.extractor import extract_model
+from nncf.experimental.torch2.function_hook.nncf_graph.nncf_graph_builder import GraphModelWrapper
 from nncf.quantization.algorithms.fast_bias_correction.backend import FastBiasCorrectionAlgoBackend
 from nncf.tensor import Tensor
 from nncf.torch.graph.transformations.command_creation import create_bias_correction_command
@@ -69,7 +72,7 @@ class PTFastBiasCorrectionAlgoBackend(FastBiasCorrectionAlgoBackend):
         return get_mean_statistic_collector(num_samples, channel_axis, window_size)
 
     @staticmethod
-    def get_sub_input_output_names(subgraph: NNCFNetwork) -> Tuple[str, str]:
+    def get_sub_input_output_names(subgraph: NNCFNetwork) -> Tuple[Optional[str], Optional[str]]:
         # Pytorch does not have name for extracted node
         return None, None
 
@@ -82,15 +85,17 @@ class PTFastBiasCorrectionAlgoBackend(FastBiasCorrectionAlgoBackend):
         return blob
 
     @staticmethod
-    def get_bias_value(node: NNCFNode, nncf_graph: NNCFGraph, model: NNCFNetwork) -> Tensor:
-        return Tensor(get_fused_bias_value(node, model))
+    def get_bias_value(node: NNCFNode, nncf_graph: NNCFGraph, model: Union[NNCFNetwork, GraphModelWrapper]) -> Tensor:
+        if isinstance(model, GraphModelWrapper):
+            model = model.model
+        return Tensor(get_fused_bias_value(node, nncf_graph, model))
 
     @staticmethod
     def get_activation_port_ids_for_bias_node(node: NNCFNode) -> Tuple[int, int]:
         return 0, 0
 
     @staticmethod
-    def process_model_output(raw_data: Dict, output_name: str) -> Tensor:
+    def process_model_output(raw_data: Dict, output_name: Optional[str]) -> Tensor:
         return Tensor(raw_data)
 
     @staticmethod
@@ -109,5 +114,13 @@ class PTFastBiasCorrectionAlgoBackend(FastBiasCorrectionAlgoBackend):
         return input_node_name, output_node_name
 
     @staticmethod
-    def get_activation_channel_axis(node: NNCFNode, pord_id: int, input_shape: Tuple[int]) -> int:
+    def get_activation_channel_axis(node: NNCFNode, port_id: int, input_shape: Tuple[int]) -> int:
         return node.metatype.output_channel_axis
+
+    def extract_submodel(
+        self, model_transformer: ModelTransformer, input_id: List[Tuple[str, int]], output_id: List[Tuple[str, int]]
+    ):
+        model = model_transformer._model
+        if isinstance(model, GraphModelWrapper):
+            return extract_model(model.model, model.get_graph(), [input_id[0]], [output_id[0]])
+        return super().extract_submodel(model_transformer, input_id, output_id)

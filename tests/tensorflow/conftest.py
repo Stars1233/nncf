@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.shared.case_collection import COMMON_SCOPE_MARKS_VS_OPTIONS
-from tests.shared.case_collection import skip_marked_cases_if_options_not_specified
+from tests.cross_fw.shared.case_collection import COMMON_SCOPE_MARKS_VS_OPTIONS
+from tests.cross_fw.shared.case_collection import skip_marked_cases_if_options_not_specified
 
 try:
     import tensorflow as tf

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -36,9 +36,11 @@ class Match:
             integer int32 scalar tensor
         """
         if match_results.shape.ndims != 1:
-            raise ValueError("match_results should have rank 1")
+            msg = "match_results should have rank 1"
+            raise ValueError(msg)
         if match_results.dtype != tf.int32:
-            raise ValueError("match_results should be an int32 or int64 scalar tensor")
+            msg = "match_results should be an int32 or int64 scalar tensor"
+            raise ValueError(msg)
         self._match_results = match_results
 
     @property

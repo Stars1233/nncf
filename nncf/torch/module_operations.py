@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -50,7 +50,8 @@ class UpdateParameter(BaseOp):
 
     def __call__(self, module, _):
         if not hasattr(module, self._param_name):
-            raise TypeError("{} should have {} attribute".format(type(module), self._param_name))
+            msg = f"{type(module)} should have {self._param_name} attribute"
+            raise TypeError(msg)
         value = getattr(module, self._param_name)
         result = super().__call__(value)
         setattr(module, self._param_name, result)
@@ -86,7 +87,8 @@ class UpdateParameterList(BaseOp):
                 if is_optional:
                     param_values.append(None)
                     continue
-                raise TypeError("{} should have {} attribute".format(type(module), param_name))
+                msg = f"{type(module)} should have {param_name} attribute"
+                raise TypeError(msg)
             param_values.append(getattr(module, param_name))
         updated_kwargs = dict(zip(self._param_names, param_values))
         updated_values = super().__call__(**updated_kwargs)

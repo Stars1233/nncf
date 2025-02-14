@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@ import torch.cuda
 from packaging import version
 from pytest import approx
 
-from tests.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import PROJECT_ROOT
 from tests.torch.helpers import Command
 from tests.torch.sample_test_validator import BaseSampleTestCaseDescriptor
 from tests.torch.sample_test_validator import BaseSampleValidator
@@ -46,7 +46,7 @@ class MovementGlueHandler:
     def get_metric_value_from_checkpoint(self, checkpoint_save_dir: str) -> Dict[str, Union[float, int]]:
         checkpoint_path = self.get_checkpoint_path(checkpoint_save_dir)
         result_path = checkpoint_path / "all_results.json"
-        with open(result_path, "r", encoding="utf-8") as f:
+        with open(result_path, encoding="utf-8") as f:
             result = json.load(f)
         return result
 

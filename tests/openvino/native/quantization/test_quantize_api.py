@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from openvino.runtime import opset13 as opset
 
 import nncf
 from nncf import Dataset
-from tests.shared.datasets import MockDataset
+from tests.cross_fw.shared.datasets import MockDataset
 
 INPUT_SHAPE = [2, 1, 1, 1]
 
@@ -32,6 +32,6 @@ def get_mock_model() -> Model:
 def test_non_positive_subset_size():
     model_to_test = get_mock_model()
 
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(nncf.ValidationError) as e:
         nncf.quantize(model_to_test, Dataset(MockDataset(INPUT_SHAPE)), subset_size=0)
         assert "Subset size must be positive." in e.info

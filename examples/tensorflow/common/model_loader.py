@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,7 +21,8 @@ def get_model(model_name, input_shape=None, pretrained=True, num_classes=1000, w
     if model_name in AVAILABLE_MODELS:
         model = AVAILABLE_MODELS[model_name]
     else:
-        raise Exception("Undefined model name: {}".format(model_name))
+        msg = f"Undefined model name: {model_name}"
+        raise Exception(msg)
 
     model_params = {"classes": num_classes}
     if weights is not None:

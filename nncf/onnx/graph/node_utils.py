@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -180,7 +180,8 @@ def _get_activation_tensor_shape(
         edges = nncf_graph.get_output_edges_by_port_id(node, target_point.port_id)
         shape = edges[0].tensor_shape
     else:
-        raise NotImplementedError(f"Unsupported target point type {target_point.type}.")
+        msg = f"Unsupported target point type {target_point.type}."
+        raise NotImplementedError(msg)
     if not shape:  # ONNX model can not have a shape of a edge, even after shape inference.
         if target_point.type == TargetType.PRE_LAYER_OPERATION:
             nncf_logger.info(

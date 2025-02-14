@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,7 +11,7 @@
 
 from abc import ABC
 from abc import abstractmethod
-from typing import Dict, Iterable, List, Optional, Tuple, TypeVar
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
 
 from nncf.common.graph import NNCFGraph
 from nncf.common.graph import NNCFNode
@@ -19,8 +19,14 @@ from nncf.common.graph.operator_metatypes import OperatorMetatype
 from nncf.common.graph.transformations.commands import TargetPoint
 from nncf.common.graph.transformations.commands import TargetType
 from nncf.common.tensor_statistics.collectors import TensorStatisticCollectorBase
+from nncf.common.tensor_statistics.statistic_point import StatisticPoint
+from nncf.experimental.common.tensor_statistics.collectors import HAWQAggregator
+from nncf.experimental.common.tensor_statistics.collectors import RawReducer
+from nncf.experimental.common.tensor_statistics.collectors import TensorCollector
+from nncf.experimental.common.tensor_statistics.statistics import HessianTensorStatistic
 from nncf.quantization.algorithms.weight_compression.config import WeightCompressionParameters
 from nncf.tensor import Tensor
+from nncf.tensor import TensorDataType
 
 TModel = TypeVar("TModel")
 
@@ -94,6 +100,32 @@ class WeightCompressionAlgoBackend(ABC):
         """
 
     @abstractmethod
+    def get_weight_dtype(
+        self, node_with_weight: NNCFNode, weight_port_id: int, model: TModel, graph: NNCFGraph
+    ) -> TensorDataType:
+        """
+        Returns a weight data type associated with the given node on the given port id.
+
+        :param node_with_weight: The node with weight.
+        :param weight_port_id: The weight port id for given node with weight.
+        :param model: The model.
+        :param graph: The model graph associated with the model.
+        :return: The weight data type.
+        """
+
+    @staticmethod
+    @abstractmethod
+    def get_weight_shape(node_with_weight: NNCFNode, weight_port_id: int, graph: NNCFGraph) -> Tuple:
+        """
+        Returns a weight shape associated with the given node on the given port id.
+
+        :param node_with_weight: The node with weight.
+        :param weight_port_id: The weight port id for given node with weight.
+        :param graph: The model graph associated with the model.
+        :return: The weight shape.
+        """
+
+    @abstractmethod
     def set_weight(
         self, node_with_weight: NNCFNode, weight_port_id: int, model: TModel, graph: NNCFGraph, weight: Tensor
     ) -> None:
@@ -127,6 +159,34 @@ class WeightCompressionAlgoBackend(ABC):
         :return: The transformed model.
         """
 
+    @abstractmethod
+    def insert_adapters(
+        self, wc_params: WeightCompressionParameters, lora_A: Tensor, lora_B: Tensor, int8_lora: bool
+    ) -> None:
+        r"""
+        Expands a model's execution graph following the Low-Rank Adaptation (LoRA) concept.
+
+        It inserts two additional Linear layers with weight matrices of low rank that are executed in parallel to the
+        target Linear layer.
+
+        Before insertion:
+
+            ----INPUT
+                   \
+                   orig.MM--------------------------------OUTPUT
+
+        After insertion:
+
+            ----INPUT ----lora_A.MM----lora_B.MM----\
+                  \                                add----OUTPUT
+                   orig.MM--------------------------/
+
+        :param wc_params: Parameters for weight compression.
+        :param lora_A: weights for the first LoRA matrix.
+        :param lora_B: weights for the second LoRA matrix.
+        :param int8_lora: indicates whether the LoRA matrices should be compressed to 8-bit.
+        """
+
     @staticmethod
     @abstractmethod
     def target_point(target_type: TargetType, target_node_name: str, port_id: int) -> TargetPoint:
@@ -139,15 +199,15 @@ class WeightCompressionAlgoBackend(ABC):
         :return: Backend-specific TargetPoint.
         """
 
-    @staticmethod
     @abstractmethod
-    def raw_statistic_collector(num_samples: Optional[int] = None) -> TensorStatisticCollectorBase:
+    def mean_statistic_collector(
+        self, reduction_axes: Tuple[int], subset_size: Optional[int] = None
+    ) -> TensorStatisticCollectorBase:
         """
-        Returns backend-specific raw statistic collector.
-        This statistic collector is used for raw data calculation, without aggregating.
+        Return mean statistic collector
 
-        :param num_samples: Maximum number of samples to collect.
-        :return: Backend-specific TensorStatisticCollectorBase for the statistics calculation.
+        :param reduction_axes: Axes along which to apply mean reduction
+        :param subset_size: Number of samples to collect
         """
 
     @staticmethod
@@ -175,6 +235,17 @@ class WeightCompressionAlgoBackend(ABC):
         :param path: Optional list of the paths.
         """
 
+    @staticmethod
+    @abstractmethod
+    def get_filter_fn_for_statistics(activation_port_id: int, algorithm_key: str) -> Callable[[StatisticPoint], bool]:
+        """
+        Returns backend-specific callable to filter statistic containers according to its statistic point.
+
+        :param activation_port_id: Activation port id for the statistic collection target node.
+        :param algorithm_key: Current algorithm key.
+        :return: Backend-specific callable to filter statistic containers according to its statistic point.
+        """
+
 
 class AWQAlgoBackend(WeightCompressionAlgoBackend):
     @staticmethod
@@ -188,3 +259,34 @@ class AWQAlgoBackend(WeightCompressionAlgoBackend):
         """
         Returns scale insertion command/transformation for applying AWQ algorithm.
         """
+
+
+class MixedPrecisionAlgoBackend(ABC):
+    @staticmethod
+    def hawq_statistic_collector(subset_size: Optional[int] = None) -> TensorCollector:
+        reducer = RawReducer()
+        aggregator = HAWQAggregator(num_samples=subset_size)
+        collector = TensorCollector(HessianTensorStatistic)
+        collector.register_statistic_branch(HessianTensorStatistic.HESSIAN_INPUT_ACTIVATION_STATS, reducer, aggregator)
+        return collector
+
+    @staticmethod
+    @abstractmethod
+    def mean_variance_statistic_collector(
+        reduction_axes: Tuple[int], subset_size: Optional[int] = None
+    ) -> TensorCollector:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def max_variance_statistic_collector(
+        reduction_axes: Tuple[int], subset_size: Optional[int] = None
+    ) -> TensorCollector:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def mean_abs_max_statistic_collector(
+        reduction_axes: Tuple[int], subset_size: Optional[int] = None
+    ) -> TensorCollector:
+        pass

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -8,11 +8,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from tests.shared.paths import TEST_ROOT
-
-PTQ_TEST_ROOT = TEST_ROOT / "post_training"
-FQ_CALCULATED_PARAMETERS_PATH = PTQ_TEST_ROOT / "data" / "fq_params" / "fq_params.json"
 
 
 def pytest_addoption(parser):
@@ -25,7 +20,18 @@ def pytest_addoption(parser):
     parser.addoption("--cuda", action="store_true", help="Enable CUDA_TORCH backend")
     parser.addoption("--benchmark", action="store_true", help="Run benchmark_app")
     parser.addoption(
+        "--torch-compile-validation",
+        action="store_true",
+        help='Validate TorchFX quantized models via torch.compile(..., backend="openvino")',
+    )
+    parser.addoption(
         "--extra-columns",
         action="store_true",
         help="Add additional columns to reports.csv",
+    )
+    parser.addoption(
+        "--memory-monitor",
+        action="store_true",
+        help="Report memory using MemoryMonitor from tools/memory_monitor.py. "
+        "Warning: currently, reported memory values are not always reproducible.",
     )

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,7 +48,7 @@ class TensorMeta:
         return hash((self.creator_id, self.index, self.shape))
 
     def __str__(self):
-        return "C{}_I{}_".format(self.creator_id, self.index) + "S" + "x".join([str(s) for s in self.shape])
+        return f"C{self.creator_id}_I{self.index}_" + "S" + "x".join([str(s) for s in self.shape])
 
 
 class TracedTensorMixin:

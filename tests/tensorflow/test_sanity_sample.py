@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -27,10 +27,10 @@ from examples.tensorflow.common.prepare_checkpoint import main as prepare_checkp
 from examples.tensorflow.object_detection import main as od_main
 from examples.tensorflow.segmentation import evaluation as seg_eval
 from examples.tensorflow.segmentation import train as seg_train
-from tests.shared.config_factory import ConfigFactory
-from tests.shared.helpers import remove_line_breaks
-from tests.shared.paths import TEST_ROOT
-from tests.shared.paths import get_accuracy_aware_checkpoint_dir_path
+from tests.cross_fw.shared.config_factory import ConfigFactory
+from tests.cross_fw.shared.helpers import remove_line_breaks
+from tests.cross_fw.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.paths import get_accuracy_aware_checkpoint_dir_path
 from tests.tensorflow.helpers import get_cifar10_dataset_builders
 from tests.tensorflow.helpers import get_coco_dataset_builders
 from tests.tensorflow.test_models import SequentialModel
@@ -57,7 +57,7 @@ def run_around_tests():
 
 
 def convert_to_argv(args):
-    return " ".join(key if val is None else "{} {}".format(key, val) for key, val in args.items()).split()
+    return " ".join(key if val is None else f"{key} {val}" for key, val in args.items()).split()
 
 
 SAMPLE_TYPES = [
@@ -141,7 +141,8 @@ def get_sample_fn(sample_type, modes):
             variants.append(key)
 
     if len(variants) != 1:
-        raise Exception("Can not choose a function for given arguments")
+        msg = "Can not choose a function for given arguments"
+        raise Exception(msg)
 
     return SAMPLES[sample_type][variants[0]]
 
@@ -153,7 +154,7 @@ def generate_config_params():
         dataset_names, dataset_types = zip(*DATASETS[sample_type])
 
         for params_id, params in enumerate(zip(config_paths, dataset_names, dataset_types, batch_sizes)):
-            config_params.append((sample_type, *params, "{}_{}".format(sample_id, params_id)))
+            config_params.append((sample_type, *params, f"{sample_id}_{params_id}"))
     return config_params
 
 
@@ -352,7 +353,7 @@ def test_export_with_resume(_config, tmp_path, export_format, _case_common_dirs)
         "--config": config_factory.serialize(),
         "--log-dir": tmp_path,
         "--resume": ckpt_path,
-        "--to-{}".format(export_format): export_path,
+        f"--to-{export_format}": export_path,
     }
 
     main = get_sample_fn(_config["sample_type"], modes=["export"])

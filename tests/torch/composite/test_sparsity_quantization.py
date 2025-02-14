@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -60,7 +60,7 @@ def test_can_quantize_inputs_for_sparsity_plus_quantization():
     assert isinstance(nncf_module.pre_ops["1"].op, SymmetricQuantizer)
 
     input_quantizer = get_all_modules(sparse_quantized_model)[
-        f"BasicConvTestModel/" f"NNCFNetworkInterface[_nncf]/ModuleDict[{EXTERNAL_QUANTIZERS_STORAGE_NAME}]"
+        f"BasicConvTestModel/NNCFNetworkInterface[_nncf]/ModuleDict[{EXTERNAL_QUANTIZERS_STORAGE_NAME}]"
     ]
 
     assert len(input_quantizer) == 1

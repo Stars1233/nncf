@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -88,7 +88,12 @@ class TestHWConfigRules:
             "target_device": "test",
             "config": {
                 "quantization": {
-                    "q8_a": {"bits": 8, "mode": ["symmetric", "asymmetric"], "granularity": "pertensor"},
+                    "q8_a": {
+                        "bits": 8,
+                        "mode": ["symmetric", "asymmetric"],
+                        "granularity": "pertensor",
+                        "narrow_range": False,
+                    },
                 }
             },
             "operations": [
@@ -111,7 +116,12 @@ class TestHWConfigRules:
             "target_device": "test",
             "config": {
                 "quantization": {
-                    "q4_a": {"bits": 4, "mode": ["symmetric", "asymmetric"], "granularity": "pertensor"},
+                    "q4_a": {
+                        "bits": 4,
+                        "mode": ["symmetric", "asymmetric"],
+                        "granularity": "pertensor",
+                        "narrow_range": False,
+                    },
                 }
             },
             "operations": [
@@ -137,7 +147,12 @@ class TestHWConfigRules:
             "target_device": "test",
             "config": {
                 "quantization": {
-                    "q4_a": {"bits": 4, "mode": ["symmetric", "asymmetric"], "granularity": "pertensor"},
+                    "q4_a": {
+                        "bits": 4,
+                        "mode": ["symmetric", "asymmetric"],
+                        "granularity": "pertensor",
+                        "narrow_range": False,
+                    },
                 }
             },
             "operations": [
@@ -180,7 +195,12 @@ class TestHWConfigRules:
             "target_device": "test",
             "config": {
                 "quantization": {
-                    "q4_a": {"bits": 4, "mode": ["symmetric", "asymmetric"], "granularity": "pertensor"},
+                    "q4_a": {
+                        "bits": 4,
+                        "mode": ["symmetric", "asymmetric"],
+                        "granularity": "pertensor",
+                        "narrow_range": False,
+                    },
                 }
             },
             "operations": [

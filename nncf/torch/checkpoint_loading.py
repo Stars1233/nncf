@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -131,7 +131,7 @@ class ProcessedKeys:
         error_msgs = []
 
         def add_error_msg(name, keys_):
-            error_msgs.insert(0, "{} key(s):\n{}. ".format(name, ",\n".join('\t\t"{}"'.format(k) for k in keys_)))
+            error_msgs.insert(0, "{} key(s):\n{}. ".format(name, ",\n".join(f'\t\t"{k}"' for k in keys_)))
 
         for key_status, keys in self._keys.items():
             is_missing = key_status == ProcessedKeyStatus.MISSING

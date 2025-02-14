@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -599,7 +599,8 @@ class TemplateTestStatisticsAggregator:
         elif test_params.collector_type == BCStatsCollectors.RAW:
             tensor_collector = algo_backend.raw_statistic_collector(len(dataset_samples))
         else:
-            raise nncf.InvalidCollectorTypeError(f"Invalid collector type: {test_params.collector_type}")
+            msg = f"Invalid collector type: {test_params.collector_type}"
+            raise nncf.InvalidCollectorTypeError(msg)
 
         target_point = self.get_target_point(test_params.target_type)
 
@@ -633,7 +634,8 @@ class TemplateTestStatisticsAggregator:
                 ret_val = stat.values
                 test_params.ref_values = dataset_samples
             else:
-                raise nncf.InvalidCollectorTypeError(f"Invalid collector type: {test_params.collector_type}")
+                msg = f"Invalid collector type: {test_params.collector_type}"
+                raise nncf.InvalidCollectorTypeError(msg)
 
             for val, ref in zip(ret_val, test_params.ref_values):
                 if isinstance(ref, np.ndarray):

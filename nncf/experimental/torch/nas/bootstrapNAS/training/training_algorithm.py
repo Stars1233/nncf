@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -253,7 +253,8 @@ class EpochBasedTrainingAlgorithm:
         :return: the training algorithm
         """
         if not Path(resuming_checkpoint_path).is_file():
-            raise FileNotFoundError("no checkpoint found at '{}'".format(resuming_checkpoint_path))
+            msg = f"no checkpoint found at '{resuming_checkpoint_path}'"
+            raise FileNotFoundError(msg)
         nncf_logger.info(f"=> loading checkpoint '{resuming_checkpoint_path}'")
         checkpoint = torch.load(resuming_checkpoint_path, map_location="cpu")
 

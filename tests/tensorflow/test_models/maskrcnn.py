@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,7 +12,7 @@
 from examples.common.sample_config import SampleConfig
 from examples.tensorflow.segmentation.models.model_selector import get_model_builder
 from examples.tensorflow.segmentation.models.model_selector import get_predefined_config
-from tests.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import PROJECT_ROOT
 
 
 def MaskRCNN(input_shape=None):

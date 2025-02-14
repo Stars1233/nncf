@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,8 +20,8 @@ def calculate_symmetric_level_ranges(num_bits: int, signed: bool, narrow_range: 
     :param signed: The flag specifying type of the symmetric quantization scheme
         if it is True then the symmetric quantization scheme is the signed and
         the un-signed otherwise.
-    :param narrow_range: The flag specifying quantization range if it is True
-        then [1; 2^num_bits - 1] and [0; 2^num_bits - 1] otherwise.
+    :param narrow_range: True if the range of quantized values is reduced by 1 compared to the
+        naive case, False otherwise.
     :return: A Tuple
         level_low - the low quant number
         level_high - the high quant number
@@ -66,5 +66,5 @@ def calculate_asymmetric_level_ranges(num_bits: int, narrow_range: bool = False)
     return level_low, level_high
 
 
-def get_num_levels(level_low: int, level_high: int):
+def get_num_levels(level_low: int, level_high: int) -> int:
     return level_high - level_low + 1

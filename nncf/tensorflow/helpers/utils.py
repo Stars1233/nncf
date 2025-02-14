@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,8 @@ def get_built_model(model, config):
         else:
             sample_size = input_info[0].get("sample_size", None) if input_info else None
         if not sample_size:
-            raise nncf.ValidationError("sample_size must be provided in configuration file")
+            msg = "sample_size must be provided in configuration file"
+            raise nncf.ValidationError(msg)
         model.build([None] + list(sample_size[1:]))
 
     return model

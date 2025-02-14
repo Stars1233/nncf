@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@ from torch import nn
 from nncf import NNCFConfig
 from nncf.common.quantization.structs import QuantizerConfig
 from nncf.torch.quantization.algo import QuantizationController
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.torch.sample_test_validator import SampleType
 from tests.torch.sample_test_validator import SanitySampleValidator
 from tests.torch.sample_test_validator import SanityTestCaseDescriptor

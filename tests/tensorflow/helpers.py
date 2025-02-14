@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,7 @@ from examples.tensorflow.common.object_detection.datasets.builder import COCODat
 from nncf import NNCFConfig
 from nncf.common.compression import BaseCompressionAlgorithmController
 from nncf.tensorflow.helpers.model_creation import create_compressed_model
-from tests.shared.helpers import BaseTensorListComparator
+from tests.cross_fw.shared.comparator import BaseTensorListComparator
 
 TensorType = Union[tf.Tensor, tf.Variable, np.ndarray, numbers.Number]
 
@@ -124,7 +124,8 @@ class TFTensorListComparator(BaseTensorListComparator):
             return tensor.numpy()
         if isinstance(tensor, (np.ndarray, numbers.Number)):
             return tensor
-        raise Exception(f"Tensor must be numbers.Number, np.ndarray, tf.Tensor or tf.Variable, not {type(tensor)}")
+        msg = f"Tensor must be numbers.Number, np.ndarray, tf.Tensor or tf.Variable, not {type(tensor)}"
+        raise Exception(msg)
 
 
 class MockCOCODatasetBuilder(COCODatasetBuilder):

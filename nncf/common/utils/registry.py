@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,7 +29,8 @@ class Registry:
 
     def _register(self, obj: Any, name: str) -> None:
         if name in self._registry_dict:
-            raise KeyError("{} is already registered in {}".format(name, self._name))
+            msg = f"{name} is already registered in {self._name}"
+            raise KeyError(msg)
         self._registry_dict[name] = obj
 
     def register(self, name: str = None) -> Callable[[Any], Any]:
@@ -50,7 +51,8 @@ class Registry:
         return self._registry_dict[name]
 
     def _key_not_found(self, name: str) -> None:
-        raise KeyError("{} is unknown type of {} ".format(name, self._name))
+        msg = f"{name} is unknown type of {self._name} "
+        raise KeyError(msg)
 
     def __contains__(self, item: Any) -> bool:
         return item in self._registry_dict.values()

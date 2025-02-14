@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -8,13 +8,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import gc
 import os
 import re
 import shutil
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import openvino as ov
@@ -28,10 +28,15 @@ from transformers import AutoTokenizer
 from whowhatbench import Evaluator
 
 import nncf
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.post_training.pipelines.base import BackendType
 from tests.post_training.pipelines.base import BaseTestPipeline
+from tests.post_training.pipelines.base import ErrorReason
+from tests.post_training.pipelines.base import ErrorReport
 from tests.post_training.pipelines.base import StatsFromOutput
-from tests.shared.paths import TEST_ROOT
+from tools.memory_monitor import MemoryType
+from tools.memory_monitor import MemoryUnit
+from tools.memory_monitor import memory_monitor_context
 
 
 @dataclass
@@ -58,7 +63,7 @@ class WCTimeStats(StatsFromOutput):
         time_regex = r".*•\s(.*)\s•.*"
         for line in stdout.splitlines():
             for attr_name, prefix_regex in zip(self.VAR_NAMES, self.REGEX_PREFIX):
-                match = re.search(r"{}{}".format(prefix_regex, time_regex), line)
+                match = re.search(f"{prefix_regex}{time_regex}", line)
                 if match:
                     setattr(self, attr_name, match.group(1))
                 continue
@@ -79,10 +84,13 @@ class LMWeightCompression(BaseTestPipeline):
         # load model
         if self.backend == BackendType.TORCH:
             if is_stateful:
-                raise RuntimeError(f"is_stateful={is_stateful} is not supported for PyTorch backend.")
+                msg = f"is_stateful={is_stateful} is not supported for PyTorch backend."
+                raise RuntimeError(msg)
 
             self.model_hf = AutoModelForCausalLM.from_pretrained(
-                self.model_id, torch_dtype=torch.float32, device_map="cpu"
+                self.model_id,
+                torch_dtype=torch.float32,
+                device_map="cpu",  # TODO (kshpv): add support of 'cuda', when supported
             )
             self.model = self.model_hf
         elif self.backend == BackendType.OV:
@@ -100,7 +108,8 @@ class LMWeightCompression(BaseTestPipeline):
                 )
             self.model = self.model_hf.model
         else:
-            raise RuntimeError(f"backend={self.backend.value} is not supported.")
+            msg = f"backend={self.backend.value} is not supported."
+            raise RuntimeError(msg)
 
         # dump FP32 model
         if not (self.fp32_model_dir / self.OV_MODEL_NAME).exists():
@@ -154,7 +163,7 @@ class LMWeightCompression(BaseTestPipeline):
                     inputs[name] = np.zeros(shape)
             if self.backend == BackendType.TORCH:
                 for input_name in inputs:
-                    inputs[input_name] = torch.from_numpy(inputs[input_name])
+                    inputs[input_name] = torch.from_numpy(inputs[input_name]).to(self.model_hf.device)
             return inputs
 
         return transform_fn
@@ -178,7 +187,19 @@ class LMWeightCompression(BaseTestPipeline):
 
         print("Weight compression...")
         start_time = time.perf_counter()
-        self.run_info.compression_memory_usage = memory_usage(self._compress, max_usage=True)
+        if self.memory_monitor:
+            gc.collect()
+            with memory_monitor_context(
+                interval=0.1,
+                memory_unit=MemoryUnit.MiB,
+                return_max_value=True,
+                save_dir=self.output_model_dir / "wc_memory_logs",
+            ) as mmc:
+                self._compress()
+            self.run_info.compression_memory_usage_rss = mmc.memory_data[MemoryType.RSS]
+            self.run_info.compression_memory_usage_system = mmc.memory_data[MemoryType.SYSTEM]
+        else:
+            self.run_info.compression_memory_usage = memory_usage(self._compress, max_usage=True)
         self.run_info.time_compression = time.perf_counter() - start_time
 
     def collect_data_from_stdout(self, stdout: str):
@@ -194,7 +215,13 @@ class LMWeightCompression(BaseTestPipeline):
             ov.serialize(self.model, self.output_model_dir / self.OV_MODEL_NAME)
             self.model_hf._save_config(self.output_model_dir)
         elif self.backend == BackendType.TORCH:
-            export_from_model(self.model_hf, self.output_model_dir, stateful=False, compression_option="fp32")
+            export_from_model(
+                self.model_hf,
+                self.output_model_dir,
+                stateful=False,
+                compression_option="fp32",
+                device=self.model_hf.device,
+            )
 
     def get_num_compressed(self) -> None:
         """
@@ -212,7 +239,7 @@ class LMWeightCompression(BaseTestPipeline):
             for i in range(node.get_output_size()):
                 if node.get_output_element_type(i).get_type_name() in ["i8", "u8"]:
                     num_int8 += 1
-                if node.get_output_element_type(i).get_type_name() in ["i4", "u4"]:
+                if node.get_output_element_type(i).get_type_name() in ["i4", "u4", "nf4"]:
                     num_int4 += 1
 
         self.run_info.num_compress_nodes.num_int8 = num_int8
@@ -242,7 +269,8 @@ class LMWeightCompression(BaseTestPipeline):
             **self.compression_params,
         )
 
-    def _validate(self):
+    def _validate(self) -> List[ErrorReport]:
+        errors = []
         is_stateful = self.params.get("is_stateful", False)
         core = ov.Core()
 
@@ -256,7 +284,12 @@ class LMWeightCompression(BaseTestPipeline):
         if os.getenv("NNCF_TEST_REGEN_DOT") is not None:
             print("Collection ground-truth reference data")
             model_gold = OVModelForCausalLM.from_pretrained(
-                self.fp32_model_dir, trust_remote_code=True, load_in_8bit=False, compile=False, stateful=is_stateful
+                self.fp32_model_dir,
+                trust_remote_code=True,
+                load_in_8bit=False,
+                compile=False,
+                stateful=is_stateful,
+                ov_config={"KV_CACHE_PRECISION": "f16"},
             )
             evaluator = Evaluator(base_model=model_gold, tokenizer=self.preprocessor, metrics=("similarity",))
             evaluator.dump_gt(str(gt_data_path))
@@ -275,7 +308,7 @@ class LMWeightCompression(BaseTestPipeline):
                 load_in_8bit=False,
                 compile=False,
                 stateful=is_stateful,
-                ov_config={"DYNAMIC_QUANTIZATION_GROUP_SIZE": "0"},
+                ov_config={"DYNAMIC_QUANTIZATION_GROUP_SIZE": "0", "KV_CACHE_PRECISION": "f16"},
             )
         print("Evaluation of the target model")
         _, all_metrics = evaluator.score(compressed_model_hf)
@@ -289,12 +322,11 @@ class LMWeightCompression(BaseTestPipeline):
         num_int4_value = self.run_info.num_compress_nodes.num_int4
         num_int8_value = self.run_info.num_compress_nodes.num_int8
 
+        template = "Regression: The number of int{} ops is different than reference {} != {}"
         if num_int4_reference != num_int4_value:
-            status_msg = f"Regression: The number of int4 ops is different \
-                than reference {num_int4_reference} != {num_int4_value}"
-            raise ValueError(status_msg)
-
+            status_msg = template.format(4, num_int4_reference, num_int4_value)
+            errors.append(ErrorReport(ErrorReason.NUM_COMPRESSED, status_msg))
         if num_int8_reference != num_int8_value:
-            status_msg = f"Regression: The number of int8 ops is different \
-                than reference {num_int8_reference} != {num_int8_value}"
-            raise ValueError(status_msg)
+            status_msg = template.format(8, num_int8_reference, num_int8_value)
+            errors.append(ErrorReport(ErrorReason.NUM_COMPRESSED, status_msg))
+        return errors

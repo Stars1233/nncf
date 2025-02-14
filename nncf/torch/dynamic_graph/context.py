@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -55,7 +55,7 @@ class PreHookId:
         return self.__dict__ == other.__dict__
 
     def __str__(self):
-        return str(self.op_address) + "|INPUT{}".format(self.input_port_id)
+        return str(self.op_address) + f"|INPUT{self.input_port_id}"
 
     def __hash__(self):
         return hash(str(self))
@@ -255,7 +255,7 @@ class TracingContext:
 
     @staticmethod
     def _get_operator_counter_key(operator_name: str, scope: Scope):
-        return "{}_{}".format(str(scope), operator_name)
+        return f"{str(scope)}_{operator_name}"
 
     def register_operator_call(self, operator_name: str, scope: Scope):
         key = self._get_operator_counter_key(operator_name, scope)

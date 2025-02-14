@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,8 +16,8 @@ from openvino.runtime import opset13 as opset
 
 import nncf
 from nncf import Dataset
-from tests.shared.datasets import MockDataset
-from tests.shared.helpers import telemetry_send_event_test_driver
+from tests.cross_fw.shared.datasets import MockDataset
+from tests.cross_fw.shared.helpers import telemetry_send_event_test_driver
 
 INPUT_SHAPE = [2, 1, 1, 1]
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -133,9 +133,8 @@ class MagnitudeSparsityController(BaseSparsityAlgoController):
         run_batchnorm_adaptation: bool = False,
     ):
         if sparsity_level >= 1 or sparsity_level < 0:
-            raise AttributeError(
-                "Sparsity level should be within interval [0,1), actual value to set is: {}".format(sparsity_level)
-            )
+            msg = f"Sparsity level should be within interval [0,1), actual value to set is: {sparsity_level}"
+            raise AttributeError(msg)
         if target_sparsified_module_info is None:
             target_sparsified_module_info_list = self.sparsified_module_info  # List[SparseModuleInfo]
         else:

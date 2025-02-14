@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -71,7 +71,7 @@ def test_pruning_export_concat_model(tmp_path, prune_first, ref_shapes):
 
     onnx_model_proto = load_exported_onnx_version(nncf_config, model, path_to_storage_dir=tmp_path)
     for i in range(1, 5):
-        conv_name = "nncf_module.conv{}".format(i)
+        conv_name = f"nncf_module.conv{i}"
         check_bias_and_weight_shape(conv_name, onnx_model_proto, *ref_shapes[i - 1])
 
 
@@ -91,7 +91,7 @@ def test_pruning_export_eltwise_model(tmp_path, prune_first, ref_shapes):
     nncf_config["compression"]["pruning_init"] = 0.5
     onnx_model_proto = load_exported_onnx_version(nncf_config, model, path_to_storage_dir=tmp_path)
     for i in range(1, 5):
-        conv_name = "nncf_module.conv{}".format(i)
+        conv_name = f"nncf_module.conv{i}"
         check_bias_and_weight_shape(conv_name, onnx_model_proto, *ref_shapes[i - 1])
 
 
@@ -111,7 +111,7 @@ def test_pruning_export_diffconvs_model(tmp_path, prune_first, ref_shapes):
     nncf_config["compression"]["pruning_init"] = 0.5
     onnx_model_proto = load_exported_onnx_version(nncf_config, model, path_to_storage_dir=tmp_path)
     for i in range(1, 5):
-        conv_name = "nncf_module.conv{}".format(i)
+        conv_name = f"nncf_module.conv{i}"
         check_bias_and_weight_shape(conv_name, onnx_model_proto, *ref_shapes[i - 1])
 
 

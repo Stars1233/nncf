@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -24,7 +24,7 @@ from tests.tensorflow.quantization.utils import get_basic_quantization_config
 def get_single_concat_test_model(input_shapes):
     inputs = []
     for i, input_shape in enumerate(input_shapes):
-        inputs.append(tf.keras.Input(shape=input_shape[1:], name="input_{}".format(i + 1)))
+        inputs.append(tf.keras.Input(shape=input_shape[1:], name=f"input_{i + 1}"))
 
     input_1, input_2 = inputs
 
@@ -39,7 +39,7 @@ def get_single_concat_test_model(input_shapes):
 def get_double_concat_test_model(input_shapes):
     inputs = []
     for i, input_shape in enumerate(input_shapes):
-        inputs.append(tf.keras.Input(shape=input_shape[1:], name="input_{}".format(i + 1)))
+        inputs.append(tf.keras.Input(shape=input_shape[1:], name=f"input_{i + 1}"))
 
     input_1, input_2 = inputs
 
@@ -55,7 +55,7 @@ def get_double_concat_test_model(input_shapes):
 def get_unet_like_test_model(input_shapes):
     inputs = []
     for i, input_shape in enumerate(input_shapes):
-        inputs.append(tf.keras.Input(shape=input_shape[1:], name="input_{}".format(i + 1)))
+        inputs.append(tf.keras.Input(shape=input_shape[1:], name=f"input_{i + 1}"))
 
     input_1, _ = inputs
 
@@ -73,8 +73,8 @@ def get_unet_like_test_model(input_shapes):
 
 
 CAT_UNIFIED_SCALE_TEST_STRUCTS = [
-    (get_single_concat_test_model, 3, 4),
-    (get_double_concat_test_model, 3, 4),
+    (get_single_concat_test_model, 1, 2),
+    (get_double_concat_test_model, 1, 2),
     (get_unet_like_test_model, 4, 6),
 ]
 
@@ -100,7 +100,6 @@ def test_unified_scales_with_concat(target_device, model_creator, ref_aq_module_
 
     model = model_creator([x_shape, y_shape])
     compressed_model, _ = create_compressed_model_and_algo_for_test(model, nncf_config, force_no_init=True)
-
     non_weight_quantizers = len(collect_fake_quantize_layers(compressed_model))
     assert non_weight_quantizers == ref_aq_module_count
 
@@ -167,7 +166,7 @@ def test_shared_op_unified_scales(target_device):
 def get_eltwise_quantizer_linking_test_model(input_shapes):
     inputs = []
     for i, input_shape in enumerate(input_shapes):
-        inputs.append(tf.keras.Input(shape=input_shape[1:], name="input_{}".format(i + 1)))
+        inputs.append(tf.keras.Input(shape=input_shape[1:], name=f"input_{i + 1}"))
 
     input_1, input_2 = inputs
 

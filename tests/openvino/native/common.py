@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,8 +20,9 @@ from packaging import version
 
 from nncf import Dataset
 from nncf.openvino.graph.nncf_graph_builder import GraphConverter
+from tests.cross_fw.shared.nx_graph import compare_nx_graph_with_reference
+from tests.cross_fw.shared.openvino_version import get_openvino_version
 from tests.openvino.conftest import OPENVINO_NATIVE_TEST_ROOT
-from tests.shared.nx_graph import compare_nx_graph_with_reference
 
 
 def convert_torch_model(model: torch.nn.Module, input_shape: Tuple[int], tmp_path: Path) -> ov.Model:
@@ -55,7 +56,7 @@ def get_dataset_for_test(model):
 
 
 def load_json(stats_path):
-    with open(stats_path, "r", encoding="utf8") as json_file:
+    with open(stats_path, encoding="utf8") as json_file:
         return json.load(json_file)
 
 
@@ -75,21 +76,6 @@ class NumpyEncoder(json.JSONEncoder):
 def dump_to_json(local_path, data):
     with open(local_path, "w", encoding="utf8") as file:
         json.dump(deepcopy(data), file, indent=4, cls=NumpyEncoder)
-
-
-def get_openvino_major_minor_version() -> Tuple[int]:
-    ov_version = ov.__version__
-    pos = ov_version.find("-")
-    if pos != -1:
-        ov_version = ov_version[:pos]
-
-    ov_version = version.parse(ov_version).base_version
-    return tuple(map(int, ov_version.split(".")[:2]))
-
-
-def get_openvino_version() -> str:
-    major_version, minor_version = get_openvino_major_minor_version()
-    return f"{major_version}.{minor_version}"
 
 
 def get_actual_reference_for_current_openvino(rel_path: Path) -> Path:

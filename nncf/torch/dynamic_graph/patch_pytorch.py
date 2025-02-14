@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,7 +12,7 @@
 import functools
 import inspect
 from contextlib import contextmanager
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 import torch
 import torch.utils.cpp_extension
@@ -24,6 +24,7 @@ from torch.nn.parallel import DistributedDataParallel
 import nncf
 from nncf import nncf_logger
 from nncf.common.utils.api_marker import api
+from nncf.experimental.common.check_feature import is_experimental_torch_tracing_enabled
 from nncf.torch.dynamic_graph.patch_pytorch_state import PATCHING_STATE
 from nncf.torch.dynamic_graph.structs import NamespaceTarget
 from nncf.torch.dynamic_graph.structs import PatchedOperatorInfo
@@ -43,7 +44,8 @@ def get_namespaces_to_patch(namespace_target: NamespaceTarget) -> object:
         return TracedParameter
     if namespace_target == NamespaceTarget.TORCH:
         return torch
-    raise nncf.ValidationError("{} namespace wasn't found in {}".format(namespace_target, NamespaceTarget))
+    msg = f"{namespace_target} namespace wasn't found in {NamespaceTarget}"
+    raise nncf.ValidationError(msg)
 
 
 def get_namespace_to_extract_functions_from(namespace_target: NamespaceTarget) -> object:
@@ -55,7 +57,8 @@ def get_namespace_to_extract_functions_from(namespace_target: NamespaceTarget) -
         return torch.nn.Parameter
     if namespace_target == NamespaceTarget.TORCH:
         return torch._C._VariableFunctions
-    raise nncf.ValidationError("{} namespace wasn't found in {}".format(namespace_target, NamespaceTarget))
+    msg = f"{namespace_target} namespace wasn't found in {NamespaceTarget}"
+    raise nncf.ValidationError(msg)
 
 
 class FunctionsToPatchWithoutTracing:
@@ -251,13 +254,14 @@ def get_torch_compile_wrapper():
     """
 
     @functools.wraps(_ORIG_TORCH_COMPILE)
-    def wrapper(model, *args, **kwargs):
+    def wrapper(model: Optional[Callable] = None, **kwargs):
         from nncf.torch.nncf_network import NNCFNetwork
 
         if isinstance(model, NNCFNetwork):
-            raise TypeError("At the moment torch.compile() is not supported for models optimized by NNCF.")
+            msg = "At the moment torch.compile() is not supported for models optimized by NNCF."
+            raise TypeError(msg)
         with disable_patching():
-            return _ORIG_TORCH_COMPILE(model, *args, **kwargs)
+            return _ORIG_TORCH_COMPILE(model, **kwargs)
 
     return wrapper
 
@@ -349,6 +353,9 @@ def get_all_functions_from_namespace(namespace: NamespaceTarget, do_filter: bool
 
 
 def patch_torch_operators():
+    if is_experimental_torch_tracing_enabled():
+        return
+
     # Only patch torch.jit.script during first patch_torch_operators call
     if not PATCHING_STATE.jit_is_wrapped:
         patch_torch_jit()
@@ -371,7 +378,7 @@ def patch_torch_operators():
 
     functions_to_patch = {}
     for namespace in NamespaceTarget:
-        if namespace == NamespaceTarget.EXTERNAL:
+        if namespace in [NamespaceTarget.ATEN, NamespaceTarget.EXTERNAL]:
             continue
         functions_to_patch[namespace] = get_all_functions_from_namespace(namespace)
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,6 @@ from copy import deepcopy
 from typing import Callable, List, Tuple
 
 import torch
-from torch._dynamo import OptimizedModule
 from torch.nn import DataParallel
 
 from nncf.common.graph.definitions import MODEL_CONST_OP_NAME
@@ -136,7 +135,7 @@ def wrap_module_call(module_call):
         from nncf.torch.dynamic_graph.patch_pytorch import unpatching_module_call
 
         # If called on a model compiled by torch dynamo, we unpatch torch operators and invoke original module call
-        if isinstance(self, OptimizedModule):
+        if "_torchdynamo_orig_callable" in self.forward.__dict__:
             return unpatching_module_call(self, *args, **kwargs)
 
         ctx = get_current_context()
@@ -191,7 +190,7 @@ def _execute_op(
     result = operator(*args, **kwargs)
     node = None
     if isinstance(result, type(NotImplemented)):
-        nncf_logger.debug("Operation {} returned NotImplemented".format(op_name))
+        nncf_logger.debug(f"Operation {op_name} returned NotImplemented")
     elif ctx.trace_dynamic_graph:
         tensor_metas = make_tensor_metas(processed_input)
         node = ctx.find_operator_node(tensor_metas, op_address)

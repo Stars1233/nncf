@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -44,7 +44,8 @@ class CalculatePaddingAdjustment:
 
     def __init__(self, activation_quantizer: SymmetricQuantizer):
         if not isinstance(activation_quantizer, SymmetricQuantizer):
-            raise nncf.InternalError("Padding adjustment is not supported for not symmetric quantization")
+            msg = "Padding adjustment is not supported for not symmetric quantization"
+            raise nncf.InternalError(msg)
         self._activation_quantizer = activation_quantizer
         self._is_enabled = True
 

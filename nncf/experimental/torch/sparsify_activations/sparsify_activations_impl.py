@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -170,9 +170,8 @@ class SparsifyActivationsAlgorithm:
 
             self._backend_entity = PTSparsifyActivationsAlgoBackend()
         else:
-            raise nncf.UnsupportedBackendError(
-                f"{model_backend.value} backend is not supported for `sparsify_activations`."
-            )
+            msg = f"{model_backend.value} backend is not supported for `sparsify_activations`."
+            raise nncf.UnsupportedBackendError(msg)
 
     def _get_target_sparsity_by_node(self, graph: NNCFGraph) -> Dict[NNCFNode, float]:
         """
@@ -195,12 +194,12 @@ class SparsifyActivationsAlgorithm:
                 ):
                     continue
                 if node in target_sparsity_by_node:
-                    raise nncf.ValidationError(
-                        f'"{node.node_name}" is matched by multiple items in `target_sparsity_by_scope`.'
-                    )
+                    msg = f'"{node.node_name}" is matched by multiple items in `target_sparsity_by_scope`.'
+                    raise nncf.ValidationError(msg)
                 target_sparsity_by_node[node] = target_sparsity
         if not target_sparsity_by_node:
-            raise nncf.ValidationError("No layers to conduct activation sparsification.")
+            msg = "No layers to conduct activation sparsification."
+            raise nncf.ValidationError(msg)
         return target_sparsity_by_node
 
 
@@ -243,7 +242,8 @@ def sparsify_activations(
 
     for scope, target_sparsity in target_sparsity_by_scope.items():
         if target_sparsity < 0.0 or target_sparsity > 1.0:
-            raise ValueError(f'Target sparsity for scope "{scope}" should be in range [0, 1].')
+            msg = f'Target sparsity for scope "{scope}" should be in range [0, 1].'
+            raise ValueError(msg)
 
     if ignored_scope is None:
         ignored_scope = IgnoredScope()

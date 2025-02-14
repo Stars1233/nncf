@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -57,7 +57,8 @@ class UNet(nn.Module):
         super().__init__()
         assert up_mode in ("upconv", "upsample")
         if (input_size_hw[0] % 2 ** (depth - 1)) or (input_size_hw[1] % 2 ** (depth - 1)):
-            raise ValueError("UNet may only operate on input resolutions aligned to 2**(depth - 1)")
+            msg = "UNet may only operate on input resolutions aligned to 2**(depth - 1)"
+            raise ValueError(msg)
         self.padding = padding
         self.depth = depth
         prev_channels = in_channels

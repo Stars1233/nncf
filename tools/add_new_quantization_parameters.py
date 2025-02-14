@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -88,7 +88,7 @@ def main(argv):
             files_to_copy.append(pair)
 
     for src_file, dst_file in files_to_copy:
-        print("\nCopying {}".format(dst_file))
+        print(f"\nCopying {dst_file}")
         copyfile(src_file, dst_file)
 
 

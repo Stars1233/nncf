@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -152,10 +152,8 @@ class MobileNetV2For32x32(nn.Module):
 
         # only check the first element, assuming user knows t,c,n,s are required
         if len(inverted_residual_setting) == 0 or len(inverted_residual_setting[0]) != 4:
-            raise ValueError(
-                "inverted_residual_setting should be non-empty "
-                "or a 4-element list, got {}".format(inverted_residual_setting)
-            )
+            msg = f"inverted_residual_setting should be non-empty or a 4-element list, got {inverted_residual_setting}"
+            raise ValueError(msg)
 
         # building first layer
         input_channel = _make_divisible(input_channel * width_mult, round_nearest)

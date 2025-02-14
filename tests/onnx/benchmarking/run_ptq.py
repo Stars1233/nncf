@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -40,7 +40,8 @@ def process_fn(data_item, model_evaluator: ModelEvaluator, has_batch_dim: Option
     if len(filled_inputs) == 1:
         return {k: np.squeeze(v, axis=0) if has_batch_dim else v for k, v in filled_inputs[0].items()}
 
-    raise Exception("len(filled_inputs) should be one.")
+    msg = "len(filled_inputs) should be one."
+    raise Exception(msg)
 
 
 def run(
@@ -72,7 +73,7 @@ def run(
     )
     # Save the quantized model.
     onnx.save(quantized_model, output_model_path)
-    print("The quantized model is saved to: {}".format(output_model_path))
+    print(f"The quantized model is saved to: {output_model_path}")
 
 
 if __name__ == "__main__":

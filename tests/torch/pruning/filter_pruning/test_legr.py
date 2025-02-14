@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -58,7 +58,7 @@ def test_legr_coeffs_saving(tmp_path):
     assert compression_ctrl.ranking_coeffs == ref_ranking_coeffs
 
     # check that in specified file some coeffs are saved (1, 0 in case of not-legr)
-    with open(file_name, "r", encoding="utf8") as f:
+    with open(file_name, encoding="utf8") as f:
         saved_coeffs_in_file = json.load(f)
     assert all(ref_ranking_coeffs[key] == tuple(saved_coeffs_in_file[key]) for key in saved_coeffs_in_file)
 
@@ -80,7 +80,7 @@ def test_legr_coeffs_save_and_load(tmp_path):
 
     _, compression_ctrl = create_compressed_model_and_algo_for_test(model, config)
     assert compression_ctrl.ranking_coeffs == ref_ranking_coeffs
-    with open(file_name_save, "r", encoding="utf8") as f:
+    with open(file_name_save, encoding="utf8") as f:
         saved_coeffs_in_file = json.load(f)
     assert all(ref_ranking_coeffs[key] == tuple(saved_coeffs_in_file[key]) for key in saved_coeffs_in_file)
 

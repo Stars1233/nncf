@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -59,7 +59,7 @@ class EarlyExitTrainingRunnerCreator(TrainingRunnerCreator):
 
         :return: AccuracyAwareTrainingRunner object
         """
-        nncf_backend = get_backend(self.compression_controller.model)  # type: ignore
+        nncf_backend = get_backend(self.compression_controller.model)
         if nncf_backend is BackendType.TORCH:
             from nncf.torch.accuracy_aware_training.runner import PTAccuracyAwareTrainingRunner
 
@@ -80,7 +80,8 @@ class EarlyExitTrainingRunnerCreator(TrainingRunnerCreator):
                 self.dump_checkpoints,
                 self.lr_updates_needed,
             )
-        raise nncf.UnsupportedBackendError("Got an unsupported value of nncf_backend")
+        msg = "Got an unsupported value of nncf_backend"
+        raise nncf.UnsupportedBackendError(msg)
 
 
 class AdaptiveCompressionLevelTrainingRunnerCreator(TrainingRunnerCreator):
@@ -114,7 +115,7 @@ class AdaptiveCompressionLevelTrainingRunnerCreator(TrainingRunnerCreator):
 
         :return: AdaptiveCompressionLevelTrainingRunner object
         """
-        nncf_backend = get_backend(self.compression_controller.model)  # type: ignore
+        nncf_backend = get_backend(self.compression_controller.model)
 
         if nncf_backend is BackendType.TORCH:
             from nncf.torch.accuracy_aware_training.runner import PTAdaptiveCompressionLevelTrainingRunner
@@ -140,4 +141,5 @@ class AdaptiveCompressionLevelTrainingRunnerCreator(TrainingRunnerCreator):
                 self.minimal_compression_rate,
                 self.maximal_compression_rate,
             )
-        raise nncf.UnsupportedBackendError("Got an unsupported value of nncf_backend")
+        msg = "Got an unsupported value of nncf_backend"
+        raise nncf.UnsupportedBackendError(msg)

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,18 +22,22 @@ import nncf
 from nncf.common.graph.layer_attributes import Dtype
 from nncf.common.tensor import NNCFTensor
 from nncf.experimental.common.tensor_statistics.collectors import AggregationAxes
+from nncf.experimental.common.tensor_statistics.collectors import HAWQAggregator
 from nncf.experimental.common.tensor_statistics.collectors import MaxAggregator
+from nncf.experimental.common.tensor_statistics.collectors import MaxVarianceReducer
+from nncf.experimental.common.tensor_statistics.collectors import MeanAbsMaxReducer
 from nncf.experimental.common.tensor_statistics.collectors import MeanAggregator
 from nncf.experimental.common.tensor_statistics.collectors import MeanNoOutliersAggregator
+from nncf.experimental.common.tensor_statistics.collectors import MeanVarianceReducer
 from nncf.experimental.common.tensor_statistics.collectors import MedianAbsoluteDeviationAggregator
 from nncf.experimental.common.tensor_statistics.collectors import MedianAggregator
 from nncf.experimental.common.tensor_statistics.collectors import MedianNoOutliersAggregator
 from nncf.experimental.common.tensor_statistics.collectors import MinAggregator
 from nncf.experimental.common.tensor_statistics.collectors import NoopAggregator
-from nncf.experimental.common.tensor_statistics.collectors import NoopReducer
 from nncf.experimental.common.tensor_statistics.collectors import PercentileAggregator
 from nncf.experimental.common.tensor_statistics.collectors import RawReducer
 from nncf.experimental.common.tensor_statistics.collectors import ShapeAggregator
+from nncf.experimental.common.tensor_statistics.collectors import ShapeReducer
 from nncf.tensor import functions as fns
 
 DEFAULT_3D_MEAN_VALUE = [[2503.125, -2493.75, 5009.375], [-4987.5, 7515.625, -7481.25], [10021.875, -9975.0, 12528.125]]
@@ -51,6 +55,7 @@ NO_OUTLIERS_DEFAULT_3D_MEAN_VALUE = [
 
 NO_OUTLIERS_DEFAULT_3D_MEDIAN_VALUE = [[5.0, 4.0, 15.0], [8.0, 25.0, 12.0], [35.0, 16.0, 45.0]]
 
+WEIGHT_COMPRESSION_REDUCERS_DATA = [[[1, 2, 0], [1, -3, 10]], [[-1, 2, -3], [4, 5, -6]]]
 
 default_test_quantile = 0.1
 
@@ -171,25 +176,33 @@ class TemplateTestReducersAggregators:
     def cast_tensor(self, tensor, dtype: Dtype):
         pass
 
-    @pytest.mark.parametrize("reducer_cls", [NoopReducer, RawReducer])
+    @pytest.mark.parametrize("reducer_cls", [RawReducer])
     @pytest.mark.parametrize("input_data", [np.arange(24).reshape((1, 2, 3, 4)), np.array([])])
     def test_other_reducers(self, reducer_cls, input_data):
         reducer = reducer_cls()
         tensor_data = self.get_nncf_tensor(input_data)
         reduced_input = reducer([tensor_data])
-        if reducer_cls == NoopReducer and tensor_data.isempty():
+        if tensor_data.isempty():
             assert reduced_input is None
         else:
             assert len(reduced_input) == 1
             assert fns.allclose(reduced_input[0], tensor_data)
 
-    @pytest.mark.parametrize("reducer_cls", [NoopReducer, RawReducer])
+    @pytest.mark.parametrize("reducer_cls", [RawReducer, ShapeReducer])
     def test_other_reducers_name_hash_equal(self, reducer_cls):
         reducers_instances = [reducer_cls() for _ in range(2)]
         assert hash(reducers_instances[0]) == hash(reducers_instances[1])
         assert reducers_instances[0] == reducers_instances[1]
         assert reducers_instances[0].name == reducers_instances[1].name
         assert len(set(reducers_instances)) == 1
+
+    @pytest.mark.parametrize("input_data", [np.arange(24).reshape((1, 2, 3, 4)), np.array([1])])
+    def test_shape_reducer(self, input_data):
+        reducer = ShapeReducer()
+        tensor_data = self.get_nncf_tensor(input_data)
+        reduced_input = reducer([tensor_data])
+        assert len(reduced_input) == 1
+        assert all(it[0] == it[1] for it in zip(reduced_input[0], tensor_data.shape))
 
     @pytest.mark.parametrize(
         "reducer_name,ref",
@@ -222,6 +235,39 @@ class TemplateTestReducersAggregators:
         assert val.shape[0] == len(ref)
         for i, ref_ in enumerate(ref):
             assert fns.allclose(val[i], self.get_nncf_tensor(ref_))
+
+    @pytest.mark.parametrize(
+        "axes, reference",
+        [[None, 16.1666], [(0,), 14.25], [(0, 1), 15.875], [(0, 1, 2), 16.1666]],
+    )
+    def test_mean_variance_reducer(self, axes, reference):
+        reducer = MeanVarianceReducer(reduction_axes=axes)
+        nncf_data = self.get_nncf_tensor(np.array(WEIGHT_COMPRESSION_REDUCERS_DATA), dtype=Dtype.FLOAT)
+        result = reducer._reduce_out_of_place([nncf_data])
+        assert len(result) == 1
+        assert fns.allclose(result[0], self.get_nncf_tensor(reference))
+
+    @pytest.mark.parametrize(
+        "axes, reference",
+        [[None, 10.0], [(0,), 4.16666], [(0, 1), 6.33333], [(0, 1, 2), 10.0]],
+    )
+    def test_mean_abs_max_reducer(self, axes, reference):
+        reducer = MeanAbsMaxReducer(reduction_axes=axes)
+        nncf_data = self.get_nncf_tensor(np.array(WEIGHT_COMPRESSION_REDUCERS_DATA), dtype=Dtype.FLOAT)
+        result = reducer._reduce_out_of_place([nncf_data])
+        assert len(result) == 1
+        assert fns.allclose(result[0], self.get_nncf_tensor(reference))
+
+    @pytest.mark.parametrize(
+        "axes, reference",
+        [[None, 16.1666], [(0,), 64.0], [(0, 1), 36.1875], [(0, 1, 2), 16.1666]],
+    )
+    def test_max_variance_reducer(self, axes, reference):
+        reducer = MaxVarianceReducer(reduction_axes=axes)
+        nncf_data = self.get_nncf_tensor(np.array(WEIGHT_COMPRESSION_REDUCERS_DATA), dtype=Dtype.FLOAT)
+        result = reducer._reduce_out_of_place([nncf_data])
+        assert len(result) == 1
+        assert fns.allclose(result[0], self.get_nncf_tensor(reference))
 
     @pytest.mark.parametrize(
         "reducer_name,ref,kwargs",
@@ -521,10 +567,10 @@ class TemplateTestReducersAggregators:
             params["inplace"] = [False, True]
             params["channel_axis"] = [1, 2]
         else:
-            raise nncf.ValidationError(
-                "test_min_max_mean_reducer_hash_equal configurated in a wrong way."
-                f" Wrong reducer_name: {reducer_name}"
+            msg = (
+                f"test_min_max_mean_reducer_hash_equal configurated in a wrong way. Wrong reducer_name: {reducer_name}"
             )
+            raise nncf.ValidationError(msg)
 
         def product_dict(**kwargs):
             keys = kwargs.keys()
@@ -545,3 +591,18 @@ class TemplateTestReducersAggregators:
         for reducer, init_hash in zip(reducers_instances, hashes):
             reducer(test_input)
             assert hash(reducer) == init_hash
+
+    HAWQ_AGGREGATOR_REFERENCE_VALUES = [
+        ([np.arange(10)], 57.0),
+        ([np.arange(12).reshape((2, 6)), np.arange(24).reshape((4, 6))], 181.92361111111111),
+        ([np.arange(8 * i).reshape((1, 8, i)) for i in range(1, 5)], 165.61627197265625),
+    ]
+
+    @pytest.mark.parametrize("inputs,reference_output", HAWQ_AGGREGATOR_REFERENCE_VALUES)
+    def test_hawq_aggregator(self, inputs, reference_output):
+        aggregator = HAWQAggregator()
+        for x in inputs:
+            aggregator.register_reduced_input(self.get_nncf_tensor(x, Dtype.FLOAT))
+
+        ret_val = aggregator.aggregate()
+        assert fns.allclose(ret_val, reference_output)

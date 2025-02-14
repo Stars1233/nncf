@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -9,11 +9,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import List, Optional, Set, Tuple
 
 from nncf.common.quantization.structs import QuantizerConfig
 from nncf.common.quantization.structs import UnifiedScaleType
+from nncf.common.utils.api_marker import api
+from nncf.parameters import StrEnum
 
 
 class QuantizationTrait(Enum):
@@ -65,21 +69,23 @@ class PropagatingQuantizer:
           this quantizer won't require unified scales.
         """
         self.potential_quant_configs: List[QuantizerConfig] = quant_configs
-        self.affected_edges = set()
+        self.affected_edges: Set[Tuple[str, str]] = set()
         self.affected_ip_nodes: Set[str] = set()
         self.propagation_path: PropagationPath = []
         self.current_location_node_key = init_location_node_key
-        self.last_accepting_location_node_key = None
+        self.last_accepting_location_node_key: Optional[str] = None
         self.id = id_
         self.unified_scale_type = unified_scale_type
-        self.affected_operator_nodes = set()
-        self.quantized_input_sink_operator_nodes = set()
-        self.downstream_propagating_quantizers = set()
+        self.affected_operator_nodes: Set[str] = set()
+        self.quantized_input_sink_operator_nodes: Set[str] = set()
+        self.downstream_propagating_quantizers: Set[PropagatingQuantizer] = set()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PropagatingQuantizer):
+            return False
         return self.id == other.id
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.id)
 
 
@@ -93,11 +99,11 @@ class QuantizerPropagationStateGraphNodeType(Enum):
 class SharedAffectedOpsPropagatingQuantizerGroup:
     """Combines propagating quantizers that share affected operations"""
 
-    def __init__(self, affecting_prop_quants: Set[PropagatingQuantizer], affected_op_node_keys: Set[str]):
+    def __init__(self, affecting_prop_quants: Set[PropagatingQuantizer], affected_op_node_keys: Set[str]) -> None:
         self.affecting_prop_quants: Set[PropagatingQuantizer] = affecting_prop_quants
         self.affected_op_node_keys: Set[str] = affected_op_node_keys
 
-    def update(self, other: "SharedAffectedOpsPropagatingQuantizerGroup"):
+    def update(self, other: SharedAffectedOpsPropagatingQuantizerGroup) -> None:
         self.affected_op_node_keys.update(other.affected_op_node_keys)
         self.affecting_prop_quants.update(other.affecting_prop_quants)
 
@@ -108,3 +114,23 @@ class IgnoreReason(Enum):
 
 
 PropagationPath = List[Tuple[str, str]]
+
+
+@api()
+class QuantizerPropagationRule(StrEnum):
+    # While propagating up through a downward-branching node:
+    # ... do not merge at all
+    DO_NOT_MERGE_BRANCHES = 0
+
+    # ... only merge for exact configuration space matches
+    MERGE_IF_ALL_BRANCHES_SAME = 1
+
+    # ... merge common parts, and if a branch quantizer has options for
+    # narrowing (bitwidth/mode/per-channel/etc.) in addition to
+    # the common part, keep the quantizer on branch
+    MERGE_WITH_POTENTIAL_REQUANTIZATION = 2
+
+    # ... merge common config options into a single config space for the global quantizer,
+    # do not merge if this is impossible for the current branching situation and given
+    # HW config file
+    MERGE_ALL_IN_ONE = 3

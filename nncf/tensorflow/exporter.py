@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -56,7 +56,8 @@ class TFExporter(Exporter):
 
         if export_fn is None:
             available_formats = list(format_to_export_fn.keys())
-            raise ValueError(f"Unsupported saving format: '{save_format}'. Available formats: {available_formats}")
+            msg = f"Unsupported saving format: '{save_format}'. Available formats: {available_formats}"
+            raise ValueError(msg)
 
         export_fn(save_path)
 

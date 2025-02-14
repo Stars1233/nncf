@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -50,8 +50,8 @@ from nncf.torch.module_operations import UpdateWeight
 from nncf.torch.nncf_module_replacement import get_original_module_scope_from_nncf_module_scope
 from nncf.torch.nncf_network import NNCFNetwork
 from nncf.torch.utils import get_all_modules_by_type
-from tests.shared.command import Command as BaseCommand
-from tests.shared.helpers import BaseTensorListComparator
+from tests.cross_fw.shared.command import Command as BaseCommand
+from tests.cross_fw.shared.comparator import BaseTensorListComparator
 
 TensorType = Union[torch.Tensor, np.ndarray, numbers.Number]
 
@@ -108,9 +108,8 @@ def create_grouped_conv(
     in_channels, out_channels, kernel_size, groups, weight_init=1, bias_init=0, padding=0, stride=1
 ):
     if in_channels % groups != 0 or out_channels % groups != 0:
-        raise nncf.ValidationError(
-            "Cannot create grouped convolution. Either `in_channels` or `out_channels` are not divisible by `groups`"
-        )
+        msg = "Cannot create grouped convolution. Either `in_channels` or `out_channels` are not divisible by `groups`"
+        raise nncf.ValidationError(msg)
     conv = nn.Conv2d(in_channels, out_channels, kernel_size, groups=groups, padding=padding, stride=stride)
     fill_conv_weight(conv, weight_init)
     fill_bias(conv, bias_init)
@@ -398,7 +397,8 @@ class PTTensorListComparator(BaseTensorListComparator):
             return tensor.cpu().detach().numpy()
         if isinstance(tensor, (np.ndarray, numbers.Number)):
             return tensor
-        raise Exception(f"Tensor must be np.ndarray or torch.Tensor, not {type(tensor)}")
+        msg = f"Tensor must be np.ndarray or torch.Tensor, not {type(tensor)}"
+        raise Exception(msg)
 
 
 def create_compressed_model_and_algo_for_test(

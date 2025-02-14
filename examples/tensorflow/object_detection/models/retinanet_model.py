@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -98,7 +98,7 @@ class RetinanetModel(base_model.Model):
             init_checkpoint_fn(keras_model)
 
         if weights:
-            logger.info("Loaded pretrained weights from {}".format(weights))
+            logger.info(f"Loaded pretrained weights from {weights}")
             keras_model.load_weights(weights)
 
         return keras_model
@@ -108,11 +108,8 @@ class RetinanetModel(base_model.Model):
 
         for field in required_output_fields:
             if field not in outputs:
-                raise ValueError(
-                    '"{}" is missing in outputs, requried {} found {}'.format(
-                        field, required_output_fields, outputs.keys()
-                    )
-                )
+                msg = f'"{field}" is missing in outputs, requried {required_output_fields} found {outputs.keys()}'
+                raise ValueError(msg)
 
         boxes, scores, classes, valid_detections = self._generate_detections_fn(
             outputs["box_outputs"], outputs["cls_outputs"], labels["anchor_boxes"], labels["image_info"][:, 1:2, :]

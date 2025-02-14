@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,7 @@ from torch import nn
 
 from nncf import NNCFConfig
 from nncf.torch.model_creation import create_nncf_network
-from tests.shared.nx_graph import compare_nx_graph_with_reference
+from tests.cross_fw.shared.nx_graph import compare_nx_graph_with_reference
 from tests.torch.test_compressed_graph import GeneralModelDesc
 from tests.torch.test_compressed_graph import IModelDesc
 from tests.torch.test_compressed_graph import get_full_path_to_the_graph

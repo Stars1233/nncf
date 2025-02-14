@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,7 +21,8 @@ from nncf.tensorflow.quantization.layers import FakeQuantize
 
 def apply_overflow_fix(model: tf.keras.Model, op_names: List[str]) -> None:
     if not isinstance(model, tf.keras.Model):
-        raise ValueError(f"Expected model to be a `tf.keras.Model` instance but got: {type(model)}")
+        msg = f"Expected model to be a `tf.keras.Model` instance but got: {type(model)}"
+        raise ValueError(msg)
 
     for wrapped_layer, weight_attr, op in get_nncf_operations(model, op_names):
         if op.half_range:

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -78,7 +78,7 @@ class RefNodeDesc:
     def __eq__(self, other: "RefNodeDesc"):
         eq_metatype = self.metatype_cls == other.metatype_cls
         if not eq_metatype:
-            print("metatype classes are different: {} vs {}".format(self.metatype_cls, other.metatype_cls))
+            print(f"metatype classes are different: {self.metatype_cls} vs {other.metatype_cls}")
         eq_layer_attributes = self.layer_attributes == other.layer_attributes
         if self.layer_attributes_comparator is not None:
             eq_layer_attributes = self.layer_attributes_comparator(self.layer_attributes, other.layer_attributes)

@@ -1,0 +1,14 @@
+-c ../../constraints.txt
+onnx
+onnxruntime
+openvino
+pytest
+pytest-cov
+pytest-dependency
+pytest-mock
+pytest-xdist
+torch
+torchvision
+
+addict>=2.4.0
+efficientnet_pytorch==0.7.1

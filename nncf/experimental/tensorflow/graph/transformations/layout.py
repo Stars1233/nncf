@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -32,7 +32,8 @@ class TFTransformationLayoutV2(TransformationLayout):
         elif transformation.type == TransformationType.INSERT:
             self._register_insertion_transformation(transformation)
         else:
-            raise ValueError(f"Unknown type of transformation command: {transformation.type}")
+            msg = f"Unknown type of transformation command: {transformation.type}"
+            raise ValueError(msg)
 
     def _register_insertion_transformation(self, transformation: TransformationCommand) -> None:
         idx = None

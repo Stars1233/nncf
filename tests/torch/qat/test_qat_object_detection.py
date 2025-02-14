@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -46,7 +46,7 @@ from examples.torch.object_detection.main import get_argument_parser
 from examples.torch.object_detection.main import train_epoch
 from nncf import NNCFConfig
 from nncf.common.compression import BaseCompressionAlgorithmController
-from tests.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import PROJECT_ROOT
 
 CONFIGS = list((PROJECT_ROOT / Path("examples/torch/object_detection/configs")).glob("*"))
 
@@ -120,7 +120,7 @@ def get_datasets(config: SampleConfig) -> DatasetSet:
     test_data_loader, train_data_loader, _ = create_dataloaders(config)
 
     test_dataset = get_testing_dataset(config.dataset, config.test_anno, config.test_imgs, config)
-    logger.info("Loaded {} testing images".format(len(test_dataset)))
+    logger.info(f"Loaded {len(test_dataset)} testing images")
     if config.distributed:
         test_sampler = torch.utils.data.DistributedSampler(test_dataset, config.rank, config.world_size)
     else:
@@ -198,7 +198,7 @@ def train(
         acc_drop = original_metric - current_metric
         logger.info(f"Metric: {current_metric}, FP32 diff: {acc_drop}")
         if accuracy_drop_is_acceptable(acc_drop):
-            logger.info(f"Accuracy is within 1 percent drop," f" pipeline is making early exit on epoch {epoch - 1}")
+            logger.info(f"Accuracy is within 1 percent drop, pipeline is making early exit on epoch {epoch - 1}")
             logger.info(
                 f"Epochs in config: {config.epochs}, epochs trained: {epoch}, epochs saved: {config.epochs - epoch}"
             )

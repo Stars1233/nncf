@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,8 +12,8 @@
 from nncf.common.graph.patterns import HWFusedPatternNames
 from nncf.common.graph.patterns import IgnoredPatternNames
 from nncf.common.utils.backend import BackendType
-from tests.shared.patterns import check_hw_patterns
-from tests.shared.patterns import check_ignored_patterns
+from tests.cross_fw.shared.patterns import check_hw_patterns
+from tests.cross_fw.shared.patterns import check_ignored_patterns
 
 IGNORING_HW_PATTERN_REASONS = {
     HWFusedPatternNames.ADD_SCALE_SHIFT_OUTPUT: "Not relevant for Torch.",

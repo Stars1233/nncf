@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,7 +47,7 @@ def get_device(config):
     if config.execution_mode == ExecutionMode.CPU_ONLY:
         return "cpu"
     if config.current_gpu is not None:
-        return "cuda:{}".format(config.current_gpu)
+        return f"cuda:{config.current_gpu}"
 
     return "cuda"
 

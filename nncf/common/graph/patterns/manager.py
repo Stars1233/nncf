@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -47,12 +47,13 @@ class PatternsManager:
                 Dict[HWFusedPatternNames, Callable[[], GraphPattern]], OPENVINO_HW_FUSED_PATTERNS.registry_dict
             )
             return registry
-        if backend == BackendType.TORCH:
+        if backend in (BackendType.TORCH, BackendType.TORCH_FX):
             from nncf.torch.hardware.fused_patterns import PT_HW_FUSED_PATTERNS
 
             registry = cast(Dict[HWFusedPatternNames, Callable[[], GraphPattern]], PT_HW_FUSED_PATTERNS.registry_dict)
             return registry
-        raise ValueError(f"Hardware-fused patterns not implemented for {backend} backend.")
+        msg = f"Hardware-fused patterns not implemented for {backend} backend."
+        raise ValueError(msg)
 
     @staticmethod
     def _get_backend_ignored_patterns_map(
@@ -77,12 +78,13 @@ class PatternsManager:
                 Dict[IgnoredPatternNames, Callable[[], GraphPattern]], OPENVINO_IGNORED_PATTERNS.registry_dict
             )
             return registry
-        if backend == BackendType.TORCH:
+        if backend in (BackendType.TORCH, BackendType.TORCH_FX):
             from nncf.torch.quantization.ignored_patterns import PT_IGNORED_PATTERNS
 
             registry = cast(Dict[IgnoredPatternNames, Callable[[], GraphPattern]], PT_IGNORED_PATTERNS.registry_dict)
             return registry
-        raise ValueError(f"Ignored patterns not implemented for {backend} backend.")
+        msg = f"Ignored patterns not implemented for {backend} backend."
+        raise ValueError(msg)
 
     @staticmethod
     def _filter_patterns(

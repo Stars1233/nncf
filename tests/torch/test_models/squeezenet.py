@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -38,7 +38,8 @@ class SqueezeNet(nn.Module):
     def __init__(self, version=1.0, num_classes=1000, dropout=0.5):
         super().__init__()
         if version not in [1.0, 1.1]:
-            raise ValueError("Unsupported SqueezeNet version {version}: 1.0 or 1.1 expected".format(version=version))
+            msg = f"Unsupported SqueezeNet version {version}: 1.0 or 1.1 expected"
+            raise ValueError(msg)
         self.num_classes = num_classes
         if version == 1.0:
             self.features = nn.Sequential(

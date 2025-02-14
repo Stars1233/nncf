@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -9,6 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime as dt
+import gc
 import os
 import re
 import time
@@ -18,7 +19,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import onnx
@@ -29,15 +30,32 @@ from optimum.intel import OVQuantizer
 
 import nncf
 from nncf import TargetDevice
-from tests.shared.command import Command
+from tests.cross_fw.shared.command import Command
+from tools.memory_monitor import MemoryType
+from tools.memory_monitor import MemoryUnit
+from tools.memory_monitor import memory_monitor_context
 
 DEFAULT_VAL_THREADS = 4
+XFAIL_SUFFIX = "_xfail_reason"
+
+
+class ErrorReason(Enum):
+    METRICS = "metrics"
+    NUM_COMPRESSED = "num_compressed"
+
+
+@dataclass
+class ErrorReport:
+    reason: ErrorReason
+    msg: str
 
 
 class BackendType(Enum):
     FP32 = "FP32"
     TORCH = "TORCH"
     CUDA_TORCH = "CUDA_TORCH"
+    FX_TORCH = "FX_TORCH"
+    CUDA_FX_TORCH = "CUDA_FX_TORCH"
     ONNX = "ONNX"
     OV = "OV"
     OPTIMUM = "OPTIMUM"
@@ -46,6 +64,7 @@ class BackendType(Enum):
 NNCF_PTQ_BACKENDS = [BackendType.TORCH, BackendType.CUDA_TORCH, BackendType.ONNX, BackendType.OV]
 ALL_PTQ_BACKENDS = NNCF_PTQ_BACKENDS
 PT_BACKENDS = [BackendType.TORCH, BackendType.CUDA_TORCH]
+FX_BACKENDS = [BackendType.FX_TORCH, BackendType.CUDA_FX_TORCH]
 OV_BACKENDS = [BackendType.OV, BackendType.OPTIMUM]
 
 LIMIT_LENGTH_OF_STATUS = 120
@@ -138,6 +157,8 @@ class RunInfo:
     metric_value: Optional[float] = None
     metric_diff: Optional[float] = None
     compression_memory_usage: Optional[int] = None
+    compression_memory_usage_rss: Optional[int] = None
+    compression_memory_usage_system: Optional[int] = None
     status: Optional[str] = None
     fps: Optional[float] = None
     time_total: Optional[float] = None
@@ -158,7 +179,15 @@ class RunInfo:
         return int(memory)
 
     def get_result_dict(self):
-        return {
+        ram_data = {}
+        if self.compression_memory_usage_rss is None and self.compression_memory_usage_system is None:
+            ram_data["RAM MiB"] = self.format_memory_usage(self.compression_memory_usage)
+        if self.compression_memory_usage_rss is not None:
+            ram_data["RAM MiB"] = self.format_memory_usage(self.compression_memory_usage_rss)
+        if self.compression_memory_usage_system is not None:
+            ram_data["RAM MiB System"] = self.format_memory_usage(self.compression_memory_usage_system)
+
+        result = {
             "Model": self.model,
             "Backend": self.backend.value if self.backend else None,
             "Metric name": self.metric_name,
@@ -167,13 +196,16 @@ class RunInfo:
             "Num FQ": self.num_compress_nodes.num_fq_nodes,
             "Num int4": self.num_compress_nodes.num_int4,
             "Num int8": self.num_compress_nodes.num_int8,
-            "RAM MiB": self.format_memory_usage(self.compression_memory_usage),
             "Compr. time": self.format_time(self.time_compression),
             **self.stats_from_output.get_stats(),
             "Total time": self.format_time(self.time_total),
             "FPS": self.fps,
+            **ram_data,
             "Status": self.status[:LIMIT_LENGTH_OF_STATUS] if self.status is not None else None,
+            "Build url": os.environ.get("BUILD_URL", ""),
         }
+
+        return result
 
 
 class BaseTestPipeline(ABC):
@@ -192,8 +224,10 @@ class BaseTestPipeline(ABC):
         reference_data: dict,
         no_eval: bool,
         run_benchmark_app: bool,
+        torch_compile_validation: bool = False,
         params: dict = None,
         batch_size: int = 1,
+        memory_monitor: bool = False,
     ) -> None:
         self.reported_name = reported_name
         self.model_id = model_id
@@ -204,8 +238,10 @@ class BaseTestPipeline(ABC):
         self.reference_data = reference_data
         self.params = params or {}
         self.batch_size = batch_size
+        self.memory_monitor = memory_monitor
         self.no_eval = no_eval
         self.run_benchmark_app = run_benchmark_app
+        self.torch_compile_validation = torch_compile_validation
         self.output_model_dir: Path = self.output_dir / self.reported_name / self.backend.value
         self.output_model_dir.mkdir(parents=True, exist_ok=True)
         self.model_name = f"{self.reported_name}_{self.backend.value}"
@@ -257,9 +293,31 @@ class BaseTestPipeline(ABC):
     def run_bench(self) -> None:
         """Run a benchmark to collect performance statistics."""
 
-    @abstractmethod
-    def _validate(self) -> None:
-        """Validate IR."""
+    def _validate(self) -> List[ErrorReport]:
+        """
+        Validates some test criteria.
+        returns:
+            A list of error reports generated during validation.
+        """
+        return []
+
+    def _process_errors(self, errors) -> str:
+        """
+        Processes a list of error reports and updates the run status.
+
+        :param errors: A list of error reports.
+        :return: A string representing the concatenated statuses of the processed errors.
+        """
+        xfails, msg_list = [], []
+        for report in errors:
+            xfail_reason = report.reason.value + XFAIL_SUFFIX
+            if xfail_reason in self.reference_data:
+                xfails.append(f"XFAIL: {self.reference_data[xfail_reason]} - {report.msg}")
+            else:
+                msg_list.append(report.msg)
+        if msg_list:
+            raise ValueError("\n".join(msg_list))
+        self.run_info.status = "\n".join(xfails)
 
     def prepare(self):
         """
@@ -268,7 +326,8 @@ class BaseTestPipeline(ABC):
         print("Preparing...")
         self.prepare_model()
         if self.model is None:
-            raise nncf.ValidationError("self.model is None")
+            msg = "self.model is None"
+            raise nncf.ValidationError(msg)
         self.prepare_preprocessor()
         self.prepare_calibration_dataset()
 
@@ -281,7 +340,7 @@ class BaseTestPipeline(ABC):
             return
         print("Validation...")
 
-        self._validate()
+        errors = self._validate()
 
         metric_value = self.run_info.metric_value
         metric_reference = self.reference_data.get("metric_value")
@@ -295,12 +354,14 @@ class BaseTestPipeline(ABC):
             and metric_reference is not None
             and not np.isclose(metric_value, metric_reference, atol=self.reference_data.get("atol", 0.001))
         ):
+            status_msg = None
             if metric_value < metric_reference:
                 status_msg = f"Regression: Metric value is less than reference {metric_value} < {metric_reference}"
-                raise ValueError(status_msg)
             if metric_value > metric_reference:
                 status_msg = f"Improvement: Metric value is better than reference {metric_value} > {metric_reference}"
-                raise ValueError(status_msg)
+            if status_msg:
+                errors.append(ErrorReport(ErrorReason.METRICS, status_msg))
+        self._process_errors(errors)
 
     def run(self) -> None:
         """
@@ -351,7 +412,19 @@ class PTQTestPipeline(BaseTestPipeline):
                 torch.set_num_threads(int(inference_num_threads))
 
         start_time = time.perf_counter()
-        self.run_info.compression_memory_usage = memory_usage(self._compress, max_usage=True)
+        if self.memory_monitor:
+            gc.collect()
+            with memory_monitor_context(
+                interval=0.1,
+                memory_unit=MemoryUnit.MiB,
+                return_max_value=True,
+                save_dir=self.output_model_dir / "ptq_memory_logs",
+            ) as mmc:
+                self._compress()
+            self.run_info.compression_memory_usage_rss = mmc.memory_data[MemoryType.RSS]
+            self.run_info.compression_memory_usage_system = mmc.memory_data[MemoryType.SYSTEM]
+        else:
+            self.run_info.compression_memory_usage = memory_usage(self._compress, max_usage=True)
         self.run_info.time_compression = time.perf_counter() - start_time
 
     def save_compressed_model(self) -> None:
@@ -367,6 +440,17 @@ class PTQTestPipeline(BaseTestPipeline):
             )
             self.path_compressed_ir = self.output_model_dir / "model.xml"
             ov.serialize(ov_model, self.path_compressed_ir)
+        elif self.backend in FX_BACKENDS:
+            exported_model = torch.export.export(self.compressed_model.cpu(), (self.dummy_tensor.cpu(),))
+            ov_model = ov.convert_model(exported_model, example_input=self.dummy_tensor.cpu(), input=self.input_size)
+            ov_model.reshape(self.input_size)
+            self.path_compressed_ir = self.output_model_dir / "model.xml"
+            ov.serialize(ov_model, self.path_compressed_ir)
+
+            if self.backend == BackendType.CUDA_FX_TORCH:
+                self.model = self.model.cuda()
+                self.dummy_tensor = self.dummy_tensor.cuda()
+
         elif self.backend == BackendType.ONNX:
             onnx_path = self.output_model_dir / "model.onnx"
             onnx.save(self.compressed_model, str(onnx_path))
@@ -375,6 +459,9 @@ class PTQTestPipeline(BaseTestPipeline):
             ov.serialize(ov_model, self.path_compressed_ir)
         elif self.backend in OV_BACKENDS:
             self.path_compressed_ir = self.output_model_dir / "model.xml"
+            from openvino._offline_transformations import apply_moc_transformations
+
+            apply_moc_transformations(self.compressed_model, cf=True)
             ov.serialize(self.compressed_model, str(self.path_compressed_ir))
 
     def get_num_compressed(self) -> None:
@@ -396,7 +483,7 @@ class PTQTestPipeline(BaseTestPipeline):
             for i in range(node.get_output_size()):
                 if node.get_output_element_type(i).get_type_name() in ["i8", "u8"]:
                     num_int8 += 1
-                if node.get_output_element_type(i).get_type_name() in ["i4", "u4"]:
+                if node.get_output_element_type(i).get_type_name() in ["i4", "u4", "nf4"]:
                     num_int4 += 1
 
         self.run_info.num_compress_nodes.num_int8 = num_int8
@@ -409,14 +496,18 @@ class PTQTestPipeline(BaseTestPipeline):
         """
         if not self.run_benchmark_app:
             return
-        runner = Command(f"benchmark_app -m {self.path_compressed_ir}")
-        runner.run(stdout=False)
-        cmd_output = " ".join(runner.output)
 
-        match = re.search(r"Throughput\: (.+?) FPS", cmd_output)
-        if match is not None:
-            fps = match.group(1)
-            self.run_info.fps = float(fps)
+        try:
+            runner = Command(f"benchmark_app -m {self.path_compressed_ir}")
+            runner.run(stdout=False)
+            cmd_output = " ".join(runner.output)
+
+            match = re.search(r"Throughput\: (.+?) FPS", cmd_output)
+            if match is not None:
+                fps = match.group(1)
+                self.run_info.fps = float(fps)
+        except Exception as e:
+            print(e)
 
     def cleanup_cache(self):
         """

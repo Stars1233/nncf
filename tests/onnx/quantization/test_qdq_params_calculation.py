@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,6 +18,8 @@ from nncf.common.quantization.structs import QuantizationPreset
 from nncf.onnx.graph.onnx_helper import get_tensor_value
 from nncf.quantization.advanced_parameters import AdvancedQuantizationParameters
 from nncf.quantization.advanced_parameters import OverflowFix
+from tests.cross_fw.shared.comparator import compare_stats
+from tests.cross_fw.shared.json import load_json
 from tests.onnx.conftest import ONNX_TEST_ROOT
 from tests.onnx.models import EmbeddingModel
 from tests.onnx.models import GEMMTransposeWeightModel
@@ -28,8 +30,6 @@ from tests.onnx.models import OneDepthwiseConvolutionalModel
 from tests.onnx.models import ReshapeWeightModel
 from tests.onnx.models import WeightSharingModel
 from tests.onnx.quantization.common import min_max_quantize_model
-from tests.shared.helpers import compare_stats
-from tests.shared.helpers import load_json
 
 REFERENCE_SCALES_DIR = ONNX_TEST_ROOT / "data" / "reference_scales"
 
@@ -109,8 +109,7 @@ def test_scales(model, preset):
     ref_stats_path = REFERENCE_SCALES_DIR / ref_stats_name
 
     # Unkomment lines below to generate reference for new models.
-    # from tests.shared.helpers import dump_to_json
-
+    # from tests.cross_fw.shared.json import dump_to_json
     # dump_to_json(ref_stats_path, q_nodes_params)
 
     ref_nodes_params = load_json(ref_stats_path)

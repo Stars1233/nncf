@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -66,7 +66,8 @@ class TFLayerMetatype(OperatorMetatype):
                 else:
                     matches.append(subtype)
         if len(matches) > 1:
-            raise nncf.InternalError("Multiple subtypes match operator call - cannot determine single subtype.")
+            msg = "Multiple subtypes match operator call - cannot determine single subtype."
+            raise nncf.InternalError(msg)
         if not matches:
             return None
         return matches[0]
@@ -635,7 +636,8 @@ def _is_depthwise_conv(layer: tf.keras.layers.Layer, wrapper: Optional[tf.keras.
     )
 
     if channels is None:
-        raise ValueError("The channel dimension of the inputs should be defined. Found `None`.")
+        msg = "The channel dimension of the inputs should be defined. Found `None`."
+        raise ValueError(msg)
 
     input_channels = int(channels)
 

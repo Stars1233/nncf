@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -9,7 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -19,6 +19,7 @@ from nncf.tensor import TensorDeviceType
 from nncf.tensor.definitions import TensorBackend
 from nncf.tensor.definitions import TypeInfo
 from nncf.tensor.functions import numeric as numeric
+from nncf.tensor.tensor import TTensor
 
 DTYPE_MAP = {
     TensorDataType.float16: torch.float16,
@@ -37,6 +38,14 @@ DTYPE_MAP_REV = {v: k for k, v in DTYPE_MAP.items()}
 DEVICE_MAP_REV = {v: k for k, v in DEVICE_MAP.items()}
 
 
+def convert_to_torch_device(device: TensorDeviceType) -> str:
+    return DEVICE_MAP[device] if device is not None else None
+
+
+def convert_to_torch_dtype(dtype: TensorDataType) -> torch.dtype:
+    return DTYPE_MAP[dtype] if dtype is not None else None
+
+
 @numeric.device.register(torch.Tensor)
 def _(a: torch.Tensor) -> TensorDeviceType:
     return DEVICE_MAP_REV[a.device.type]
@@ -53,7 +62,8 @@ def _(a: torch.Tensor, axis: Optional[Union[int, Tuple[int, ...]]] = None) -> to
         return a.squeeze()
     if isinstance(axis, Tuple) and any(a.shape[i] != 1 for i in axis):
         # Make Numpy behavior, torch.squeeze skips axes that are not equal to one..
-        raise ValueError("Cannot select an axis to squeeze out which has size not equal to one")
+        msg = "Cannot select an axis to squeeze out which has size not equal to one"
+        raise ValueError(msg)
     return a.squeeze(axis)
 
 
@@ -200,7 +210,7 @@ def _(
     keepdims: bool = False,
     dtype: Optional[TensorDataType] = None,
 ) -> torch.Tensor:
-    dtype = DTYPE_MAP[dtype] if dtype else None
+    dtype = convert_to_torch_dtype(dtype)
     return torch.mean(a, dim=axis, keepdim=keepdims, dtype=dtype)
 
 
@@ -381,14 +391,16 @@ def _(a: torch.Tensor, axis: Union[int, Tuple[int, ...], List[int]]) -> np.ndarr
         axis = (axis,)
 
     if len(set(axis)) != len(axis):
-        raise ValueError("repeated axis")
+        msg = "repeated axis"
+        raise ValueError(msg)
 
     out_ndim = len(axis) + a.dim()
 
     norm_axis = []
     for ax in axis:
         if ax < -out_ndim or ax >= out_ndim:
-            raise ValueError(f"axis {ax} is out of bounds for array of dimension {out_ndim}")
+            msg = f"axis {ax} is out of bounds for array of dimension {out_ndim}"
+            raise ValueError(msg)
         norm_axis.append(ax + out_ndim if ax < 0 else ax)
 
     shape_it = iter(a.shape)
@@ -404,9 +416,11 @@ def _(a: torch.Tensor) -> torch.Tensor:
 @numeric.searchsorted.register(torch.Tensor)
 def _(a: torch.Tensor, v: torch.Tensor, side: str = "left", sorter: Optional[torch.Tensor] = None) -> torch.Tensor:
     if side not in ["right", "left"]:
-        raise ValueError(f"Invalid value for 'side': {side}. Expected 'right' or 'left'.")
+        msg = f"Invalid value for 'side': {side}. Expected 'right' or 'left'."
+        raise ValueError(msg)
     if a.dim() != 1:
-        raise ValueError(f"Input tensor 'a' must be 1-D. Received {a.dim()}-D tensor.")
+        msg = f"Input tensor 'a' must be 1-D. Received {a.dim()}-D tensor."
+        raise ValueError(msg)
     return torch.searchsorted(sorted_sequence=a, input=v, right=(side == "right"), sorter=sorter)
 
 
@@ -416,10 +430,8 @@ def zeros(
     dtype: Optional[TensorDataType] = None,
     device: Optional[TensorDeviceType] = None,
 ) -> torch.Tensor:
-    if dtype is not None:
-        dtype = DTYPE_MAP[dtype]
-    if device is not None:
-        device = DEVICE_MAP[device]
+    device = convert_to_torch_device(device)
+    dtype = convert_to_torch_dtype(dtype)
     return torch.zeros(*shape, dtype=dtype, device=device)
 
 
@@ -430,10 +442,8 @@ def eye(
     dtype: Optional[TensorDataType] = None,
     device: Optional[TensorDeviceType] = None,
 ) -> torch.Tensor:
-    if dtype is not None:
-        dtype = DTYPE_MAP[dtype]
-    if device is not None:
-        device = DEVICE_MAP[device]
+    device = convert_to_torch_device(device)
+    dtype = convert_to_torch_dtype(dtype)
     p_args = (n,) if m is None else (n, m)
     return torch.eye(*p_args, dtype=dtype, device=device)
 
@@ -446,10 +456,8 @@ def arange(
     dtype: Optional[TensorDataType] = None,
     device: Optional[TensorDeviceType] = None,
 ) -> torch.Tensor:
-    if dtype is not None:
-        dtype = DTYPE_MAP[dtype]
-    if device is not None:
-        device = DEVICE_MAP[device]
+    device = convert_to_torch_device(device)
+    dtype = convert_to_torch_dtype(dtype)
     return torch.arange(start, end, step, dtype=dtype, device=device)
 
 
@@ -465,3 +473,19 @@ def _(a: torch.Tensor) -> torch.Tensor:
 @numeric.ceil.register(torch.Tensor)
 def _(a: torch.Tensor) -> torch.Tensor:
     return torch.ceil(a)
+
+
+def tensor(
+    data: Union[TTensor, Sequence[float]],
+    *,
+    dtype: Optional[TensorDataType] = None,
+    device: Optional[TensorDeviceType] = None,
+) -> torch.Tensor:
+    device = convert_to_torch_device(device)
+    dtype = convert_to_torch_dtype(dtype)
+    return torch.tensor(data, dtype=dtype, device=device)
+
+
+@numeric.as_numpy_tensor.register(torch.Tensor)
+def _(a: torch.Tensor) -> np.ndarray:
+    return a.cpu().detach().numpy()

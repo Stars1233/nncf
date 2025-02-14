@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -71,12 +71,13 @@ class ProgressiveShrinkingBuilder(PTCompressionAlgorithmBuilder):
         """
         for dim in available_elasticity_dims:
             if dim not in progressivity_of_elasticity:
-                raise ValueError(
+                msg = (
                     f"Invalid elasticity dimension {dim} specified as available in `elasticity` section."
                     f" This dimension is not part of the progressivity_of_elasticity="
                     f"{progressivity_of_elasticity} which defines order of adding elasticity dimension"
                     f" by going from one training stage to another."
                 )
+                raise ValueError(msg)
 
     def initialize(self, model: NNCFNetwork) -> None:
         """

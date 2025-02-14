@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -61,8 +61,9 @@ class ManualPrecisionInitializer(BasePrecisionInitializer):
                     is_matched = True
                     break
             if not is_matched:
-                raise ValueError(
-                    "Could not find a quantization point at scope name `{}`, failed to assign bitwidth {} "
-                    "to it".format(scope_name, bitwidth)
+                msg = (
+                    f"Could not find a quantization point at scope name `{scope_name}`,"
+                    f" failed to assign bitwidth {bitwidth} to it"
                 )
+                raise ValueError(msg)
         return quantizer_setup

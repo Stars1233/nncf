@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,7 @@ from examples.common.sample_config import SampleConfig
 def configure_paths(config: SampleConfig, run_name: str):
     config.name = run_name
     d = datetime.datetime.now()
-    run_id = "{:%Y-%m-%d__%H-%M-%S}".format(d)
+    run_id = f"{d:%Y-%m-%d__%H-%M-%S}"
     log_dir = Path(config.log_dir) / run_name / run_id
     log_dir.mkdir(parents=True, exist_ok=True)
     config.log_dir = str(log_dir)

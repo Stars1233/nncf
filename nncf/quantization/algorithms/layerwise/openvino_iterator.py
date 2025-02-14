@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -10,6 +10,7 @@
 # limitations under the License.
 
 from collections import defaultdict
+from itertools import islice
 from typing import Dict, List, Optional, Tuple
 
 import openvino.runtime as ov
@@ -185,9 +186,8 @@ class OVLayerwiseIterator(LayerwiseIterator):
             if input_id in self._model_input_ids:
                 subgraph_model_input_ids.append(input_id)
             else:
-                raise RuntimeError(
-                    f"{input.node_name}:{input.output_port} is not found in the input cache and is not a model input"
-                )
+                msg = f"{input.node_name}:{input.output_port} is not found in the input cache and is not a model input"
+                raise RuntimeError(msg)
 
         if subgraph_model_input_ids:
             subgraph_inputs = self._model_input_ids
@@ -200,7 +200,7 @@ class OVLayerwiseIterator(LayerwiseIterator):
                         and input_id not in subgraph_outputs
                     ):
                         subgraph_outputs.append(input_id)
-            feed_dicts = self._dataset.get_inference_data(range(self._subset_size))
+            feed_dicts = islice(self._dataset.get_inference_data(), self._subset_size)
         else:
             subgraph_inputs = step.subgraph_inputs
             subgraph_outputs = step.subgraph_outputs

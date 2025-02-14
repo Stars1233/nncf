@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -23,3 +23,8 @@ class CompressionStartedWithQuantizeApi(TelemetryExtractor):
 class CompressionStartedWithQuantizeWithAccuracyControlApi(TelemetryExtractor):
     def extract(self, _: Any) -> CollectedEvent:
         return CollectedEvent(name="compression_started", data="quantize_with_accuracy_control_api")
+
+
+class CompressionStartedWithCompressWeightsApi(TelemetryExtractor):
+    def extract(self, _: Any) -> CollectedEvent:
+        return CollectedEvent(name="compression_started", data="compress_weights_api")

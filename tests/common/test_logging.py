@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,7 +48,7 @@ def test_set_log_file(messages, expected):
             writer = level_to_fn_map[message_level]
             writer(message)
 
-        with open(log_file, "r", encoding="utf8") as f:
+        with open(log_file, encoding="utf8") as f:
             lines = f.readlines()
 
         for actual_line, expected_line in zip(lines, expected):

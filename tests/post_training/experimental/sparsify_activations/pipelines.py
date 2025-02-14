@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,11 +30,13 @@ import nncf
 from nncf.experimental.torch.sparsify_activations import sparsify_activations
 from nncf.experimental.torch.sparsify_activations.sparsify_activations_impl import SparsifyActivationsAlgoBackend
 from nncf.experimental.torch.sparsify_activations.torch_backend import PTSparsifyActivationsAlgoBackend
-from nncf.torch.quantization.layers import AsymmetricWeightsDecompressor
-from nncf.torch.quantization.layers import SymmetricWeightsDecompressor
+from nncf.torch.quantization.layers import INT8AsymmetricWeightsDecompressor
+from nncf.torch.quantization.layers import INT8SymmetricWeightsDecompressor
 from tests.post_training.pipelines.base import LIMIT_LENGTH_OF_STATUS
 from tests.post_training.pipelines.base import PT_BACKENDS
 from tests.post_training.pipelines.base import BackendType
+from tests.post_training.pipelines.base import ErrorReason
+from tests.post_training.pipelines.base import ErrorReport
 from tests.post_training.pipelines.base import NumCompressNodes
 from tests.post_training.pipelines.base import RunInfo
 from tests.post_training.pipelines.image_classification_timm import ImageClassificationTimm
@@ -133,7 +135,7 @@ class SAPipelineMixin:
             for i in range(node.get_output_size()):
                 if node.get_output_element_type(i).get_type_name() in ["i8", "u8"]:
                     num_int8 += 1
-                if node.get_output_element_type(i).get_type_name() in ["i4", "u4"]:
+                if node.get_output_element_type(i).get_type_name() in ["i4", "u4", "nf4"]:
                     num_int4 += 1
 
         num_sparse_activations = count_sparsifier_patterns_in_ov(model)
@@ -170,13 +172,14 @@ class SAPipelineMixin:
             )
 
     def _validate(self):
-        super()._validate()
+        errors = super()._validate()
         ref_num_sparse_activations = self.reference_data.get("num_sparse_activations", 0)
         num_sparse_activations = self.run_info.num_compress_nodes.num_sparse_activations
         if num_sparse_activations != ref_num_sparse_activations:
             status_msg = f"Regression: The number of sparse activations is {num_sparse_activations}, \
                 which differs from reference {ref_num_sparse_activations}."
-            raise ValueError(status_msg)
+            errors.append(ErrorReport(ErrorReason.NUM_COMPRESSED, status_msg))
+        return errors
 
 
 class LMSparsifyActivations(SAPipelineMixin, LMWeightCompression):
@@ -187,7 +190,8 @@ class LMSparsifyActivations(SAPipelineMixin, LMWeightCompression):
 
         if self.backend in PT_BACKENDS:
             if is_stateful:
-                raise RuntimeError(f"is_stateful={is_stateful} is not supported for PyTorch backend.")
+                msg = f"is_stateful={is_stateful} is not supported for PyTorch backend."
+                raise RuntimeError(msg)
 
             self.model_hf = AutoModelForCausalLM.from_pretrained(
                 self.model_id,
@@ -216,7 +220,8 @@ class LMSparsifyActivations(SAPipelineMixin, LMWeightCompression):
                 )
             self.model = self.model_hf.model
         else:
-            raise RuntimeError(f"backend={self.backend.value} is not supported.")
+            msg = f"backend={self.backend.value} is not supported."
+            raise RuntimeError(msg)
 
         if not (self.fp32_model_dir / self.OV_MODEL_NAME).exists():
             self._dump_model_fp32()
@@ -241,9 +246,8 @@ class LMSparsifyActivations(SAPipelineMixin, LMWeightCompression):
                     shape[0] = len(samples)
                     inputs[input_name] = ov.Tensor(sample_value.get_element_type(), shape)
                 else:
-                    raise RuntimeError(
-                        f"Failed to generate calibration set for {input_name} in type {type(sample_value)}"
-                    )
+                    msg = f"Failed to generate calibration set for {input_name} in type {type(sample_value)}"
+                    raise RuntimeError(msg)
             if self.backend == BackendType.CUDA_TORCH:
                 for input_name in inputs:
                     inputs[input_name] = torch.from_numpy(inputs[input_name]).cuda()
@@ -267,7 +271,7 @@ class LMSparsifyActivations(SAPipelineMixin, LMWeightCompression):
         if self.backend == BackendType.CUDA_TORCH:
             self.model_hf.float()
             for module in self.model_hf.nncf.modules():
-                if isinstance(module, (AsymmetricWeightsDecompressor, SymmetricWeightsDecompressor)):
+                if isinstance(module, (INT8AsymmetricWeightsDecompressor, INT8SymmetricWeightsDecompressor)):
                     module.result_dtype = torch.float32
             export_from_model(
                 self.model_hf, self.output_model_dir, stateful=False, compression_option="fp32", device="cuda"

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -23,6 +23,7 @@ def get_preprocess_input_fn(config, is_train):
     elif model_name == "YOLOv4":
         tfds_decoder, preprocess_input_fn = YOLOv4Preprocessor(config, is_train).create_preprocess_input_fn()
     else:
-        raise ValueError("Unknown model name {}".format(model_name))
+        msg = f"Unknown model name {model_name}"
+        raise ValueError(msg)
 
     return tfds_decoder, preprocess_input_fn

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,9 +30,8 @@ def get_preprocessing(dataset_name, model_name, preset=None):
     if not preset:
         preset = dataset_name
     if preset not in PREPROCESSING_FN_MAP:
-        raise nncf.ValidationError(
-            "Preprocessing for dataset {} and model {} was not recognized".format(dataset_name, model_name)
-        )
+        msg = f"Preprocessing for dataset {dataset_name} and model {model_name} was not recognized"
+        raise nncf.ValidationError(msg)
 
     ext_kwargs = {}
     if preset == "imagenet2012":

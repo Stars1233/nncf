@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,7 +21,7 @@ from nncf.common.graph.graph import NNCFGraph
 from nncf.common.graph.graph import NNCFNode
 from nncf.common.graph.layer_attributes import LinearLayerAttributes
 from nncf.experimental.torch.sparsity.movement.algo import MovementSparsifier
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.paths import TEST_ROOT
 
 FACTOR_NAME_IN_MOVEMENT_STAT = "movement_sparsity/importance_regularization_factor"
 THRESHOLD_NAME_IN_MOVEMENT_STAT = "movement_sparsity/importance_threshold"

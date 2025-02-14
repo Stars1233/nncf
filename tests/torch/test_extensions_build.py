@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,10 +18,10 @@ import pytest
 import torch
 
 from nncf.common.utils.os import is_windows
-from tests.shared.command import Command
-from tests.shared.helpers import create_venv_with_nncf
-from tests.shared.helpers import get_python_executable_with_venv
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.command import Command
+from tests.cross_fw.shared.helpers import create_venv_with_nncf
+from tests.cross_fw.shared.helpers import get_python_executable_with_venv
+from tests.cross_fw.shared.paths import TEST_ROOT
 
 EXTENSIONS_BUILD_FILENAME = "extensions_build_checks.py"
 
@@ -64,14 +64,14 @@ def test_force_cuda_build(tmp_path):
     mode = "cpu"
 
     command = Command(
-        "{} {}/extensions_build_checks.py {}".format(python_executable_with_venv, run_path, mode),
+        f"{python_executable_with_venv} {run_path}/extensions_build_checks.py {mode}",
         cwd=run_path,
         env=env_variables,
     )
     command.run()
 
     version_command = Command(
-        '{} -c "import torch; print(torch.__version__)"'.format(python_executable_with_venv),
+        f'{python_executable_with_venv} -c "import torch; print(torch.__version__)"',
         cwd=run_path,
         env=env_variables,
     )
@@ -91,7 +91,7 @@ def test_force_cuda_build(tmp_path):
     mode = "cuda"
 
     command = Command(
-        "{} {}/extensions_build_checks.py {}".format(python_executable_with_venv, run_path, mode),
+        f"{python_executable_with_venv} {run_path}/extensions_build_checks.py {mode}",
         cwd=run_path,
         env=env_variables,
     )

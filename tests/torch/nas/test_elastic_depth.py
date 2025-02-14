@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -67,7 +67,7 @@ class DepthBasicConvTestModel(nn.Module):
         self.branch_with_blocks = nn.Sequential()
         for idx in range(depth):
             conv = create_conv(3, 3, 5, weight_init=idx + 1, bias_init=idx + 1, padding=2)
-            self.branch_with_blocks.add_module("conv{}".format(idx), conv)
+            self.branch_with_blocks.add_module(f"conv{idx}", conv)
         self.last_conv = create_conv(3, 1, 1)
 
     def forward(self, x):

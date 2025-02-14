@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -50,11 +50,12 @@ class TFTracingContextState:
         self._wrap_ops = wrap_ops
 
         if model is None and in_call:
-            raise ValueError(
+            msg = (
                 f"Inconsisten values `{in_call}` and `{model}` for `in_call` and `model` parameters. "
                 "The `None` value is specified that model is undefined at this moment. This is only "
                 "possible when `in_call` is equal to `False`."
             )
+            raise ValueError(msg)
 
         self._model = model
 

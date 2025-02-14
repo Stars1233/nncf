@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -77,7 +77,7 @@ from tests.common.quantization.mock_graphs import get_mock_model_graph_with_merg
 from tests.common.quantization.mock_graphs import get_mock_model_graph_with_no_mergeable_pattern
 from tests.common.quantization.mock_graphs import get_nncf_graph_from_mock_nx_graph
 from tests.common.quantization.mock_graphs import get_two_branch_mock_model_graph
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.torch.helpers import HookChecker
 
 
@@ -185,7 +185,8 @@ class TestInsertionCommands:
             module = model.nncf.get_module_by_scope(insertion_point.module_scope)
             assert module.post_ops["0"] is hook
         else:
-            raise Exception(f"Not check order for {insertion_point.insertion_type}")
+            msg = f"Not check order for {insertion_point.insertion_type}"
+            raise Exception(msg)
 
         assert len(model.nncf._groups_vs_hooks_handlers[test_hook_group]) == 1
 
@@ -251,7 +252,8 @@ class TestInsertionCommands:
             module = model.nncf.get_module_by_scope(insertion_point.module_scope)
             assert module.post_ops["0"] is hook
         else:
-            raise Exception(f"Not check order for {insertion_point.insertion_type}")
+            msg = f"Not check order for {insertion_point.insertion_type}"
+            raise Exception(msg)
 
         if isinstance(hook, nn.Module) and not multidevice:
             assert hook.to_device == get_model_device(model)
@@ -365,7 +367,8 @@ class TestInsertionCommands:
                 module = model.nncf.get_containing_module(point.target_node_name)
                 self.check_order(list(module.post_ops.values()), hook_list, order)
         else:
-            raise Exception(f"Not check order for {target_type}")
+            msg = f"Not check order for {target_type}"
+            raise Exception(msg)
 
 
 MERGE_PATTERN_TEST_CASES = (
@@ -575,7 +578,7 @@ class TestInsertionPointGraph:
 
         data_dir: Path = TEST_ROOT / "torch/data/reference_graphs/pattern_merging"
 
-        path_to_dot_file = data_dir / "{}.dot".format(dot_file_name)
+        path_to_dot_file = data_dir / f"{dot_file_name}.dot"
 
         if os.getenv("NNCF_TEST_REGEN_DOT") is not None:
             if not os.path.exists(str(data_dir)):

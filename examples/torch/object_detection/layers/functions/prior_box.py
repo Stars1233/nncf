@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -8,8 +8,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from __future__ import division
 
 from itertools import product
 from math import sqrt
@@ -87,7 +85,8 @@ class PriorBoxFunction(torch.autograd.Function):
     def forward(ctx, input_fm, img_tensor, priorbox_params):
         for v in priorbox_params.variance:
             if v <= 0:
-                raise ValueError("Variances must be greater than 0")
+                msg = "Variances must be greater than 0"
+                raise ValueError(msg)
 
         mean = []
         variance_channel = []

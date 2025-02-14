@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -259,8 +259,8 @@ def test_linear_pruning_ops():
     )
     # Check linear layer always accept pruned input
     assert dummy_types.LinearPruningOp.accept_pruned_input(linear_op_target)
-    ones_input_mask = NPNNCFTensor(np.ones((in_features)))
-    ones_output_mask = NPNNCFTensor(np.ones((out_features)))
+    ones_input_mask = NPNNCFTensor(np.ones(in_features))
+    ones_output_mask = NPNNCFTensor(np.ones(out_features))
     # Check all combinations of masks
     for input_mask in [None, ones_input_mask]:
         for output_mask in [None, ones_output_mask]:

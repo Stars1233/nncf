@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -38,7 +38,9 @@ class Unpickler(pickle.Unpickler):
         "torch.nn": {"Module"},
         "torch.optim.adam": {"Adam"},
         "nncf.api.compression": {"CompressionStage", "CompressionLevel"},
-        "numpy.core.multiarray": {"scalar"},
+        "nncf.common.quantization.structs": {"QuantizationScheme"},
+        "numpy.core.multiarray": {"scalar"},  # numpy<2
+        "numpy._core.multiarray": {"scalar"},  # numpy>=2
         "numpy": {"dtype"},
         "_codecs": {"encode"},
     }
@@ -55,4 +57,5 @@ class Unpickler(pickle.Unpickler):
                 return getattr(module, class_name)
 
         # Forbid everything else.
-        raise pickle.UnpicklingError("global '%s.%s' is forbidden" % (module_name, class_name))
+        msg = f"global '{module_name}.{class_name}' is forbidden"
+        raise pickle.UnpicklingError(msg)

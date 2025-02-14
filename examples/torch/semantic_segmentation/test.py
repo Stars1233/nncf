@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -76,6 +76,6 @@ class Test:
             self.metric.add(metric_outputs.detach(), labels.detach())
 
             if iteration_loss:
-                logger.info("[Step: {}] Iteration loss: {:.4f}".format(step, loss.item()))
+                logger.info(f"[Step: {step}] Iteration loss: {loss.item():.4f}")
 
         return epoch_loss / len(self.data_loader), self.metric.value()

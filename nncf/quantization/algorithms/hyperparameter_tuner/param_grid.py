@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,6 +12,7 @@
 import itertools
 from typing import Any, Dict, List
 
+from nncf.common.quantization.quantizer_propagation.structs import QuantizerPropagationRule
 from nncf.common.quantization.structs import QuantizationPreset
 from nncf.common.utils.backend import BackendType
 from nncf.quantization.advanced_parameters import AdvancedSmoothQuantParameters
@@ -64,6 +65,9 @@ def _get_minmax_quantization_param_grid() -> ParamGrid:
     ]
 
     param_grid = {
+        "advanced_parameters:quantizer_propagation_rule": [
+            QuantizerPropagationRule.MERGE_IF_ALL_BRANCHES_SAME,
+        ],
         "preset": [QuantizationPreset.PERFORMANCE, QuantizationPreset.MIXED],
         "advanced_parameters:weights_range_estimator_params": [
             RangeEstimatorParameters(

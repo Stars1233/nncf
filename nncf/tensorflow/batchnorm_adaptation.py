@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -54,11 +54,12 @@ class TFBatchnormAdaptationAlgorithmImpl(BatchnormAdaptationAlgorithmImpl):
         :param model: A model for which the algorithm will be applied.
         """
         if self._device is not None:
-            raise ValueError(
+            msg = (
                 "TF implementation of batchnorm adaptation algorithm "
                 "does not support switch of devices. Model initial device "
                 "is used by default for batchnorm adaptation."
             )
+            raise ValueError(msg)
         with BNTrainingStateSwitcher(model):
             for x, _ in ProgressBar(
                 islice(self._data_loader, self._num_bn_adaptation_steps),

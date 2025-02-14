@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,6 +30,7 @@ def mean_per_channel(x: Tensor, axis: int, dtype: Optional[TensorDataType] = Non
 
     pos_axis = axis + x.ndim if axis < 0 else axis
     if pos_axis < 0 or pos_axis >= x.ndim:
-        raise ValueError(f"axis {axis} is out of bounds for array of dimension {x.ndim}")
+        msg = f"axis {axis} is out of bounds for array of dimension {x.ndim}"
+        raise ValueError(msg)
     axis = tuple(i for i in range(x.ndim) if i != pos_axis)
     return fns.mean(x, axis=axis, dtype=dtype)
