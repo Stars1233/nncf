@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -149,7 +149,7 @@ class PropagationGroup:
         consumers: Optional[Set[ConsumerInfo]] = None,
     ) -> None:
         self.block = block
-        self._children: List["PropagationGroup"] = []
+        self._children: List[PropagationGroup] = []
         self._is_invalid = False
         self._producers = set() if producers is None else producers
         self._consumers = set() if consumers is None else consumers

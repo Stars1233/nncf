@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -75,15 +75,15 @@ def convert_to_torch_fakequantizer(nncf_quantizer: BaseQuantizer) -> FakeQuantiz
     :param quantizer: NNCF Quantizer module.
     :return: Instance of FakeQuantize similar to the input quantizer.
     """
-
     # Call set_ranges in case the basic parameters impacting levels had changed
     nncf_quantizer.set_levels()
 
     if nncf_quantizer.num_bits not in SUPPORTED_NUM_BITS_FOR_STRIP_MODEL:
-        raise nncf.InternalError(
+        msg = (
             "Converting nncf quantizer module to torch native only supports "
             f"for num_bits in {SUPPORTED_NUM_BITS_FOR_STRIP_MODEL}."
         )
+        raise nncf.InternalError(msg)
     per_channel = nncf_quantizer.per_channel
     scale_shape = nncf_quantizer.scale_shape
     ch_axis = int(np.argmax(scale_shape))

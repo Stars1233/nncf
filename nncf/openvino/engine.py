@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,6 +13,8 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import openvino.runtime as ov
+from openvino import Type
+from openvino.properties.hint import inference_precision
 
 from nncf.common.engine import Engine
 from nncf.openvino.graph.model_utils import model_has_state
@@ -62,10 +64,18 @@ class OVNativeEngine(Engine):
     to infer the model.
     """
 
-    def __init__(self, model: ov.Model):
+    def __init__(self, model: ov.Model, use_fp32_precision: bool = True):
+        """
+        :param model: Model.
+        :param use_fp32_precision: A flag that determines whether to force the engine to use FP32
+            precision during inference.
+        """
+        config = None
+        if use_fp32_precision:
+            config = {inference_precision: Type.f32}
         ie = ov.Core()
         stateful = model_has_state(model)
-        compiled_model = ie.compile_model(model, device_name="CPU")
+        compiled_model = ie.compile_model(model, device_name="CPU", config=config)
         self.engine = OVCompiledModelEngine(compiled_model, stateful)
 
     def infer(

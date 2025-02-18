@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -67,7 +67,7 @@ def replace_lstm(model):
             for d in range(custom_lstm.num_directions):
                 for name in get_param_names(custom_lstm.bias):
                     suffix = "_reverse" if d == 1 else ""
-                    param_name = name + "_l{}{}".format(layer_idx, suffix)
+                    param_name = name + f"_l{layer_idx}{suffix}"
                     param = getattr(module_, param_name)
                     getattr(custom_lstm, param_name).data.copy_(param.data)
         custom_lstm.to(device)
@@ -236,7 +236,7 @@ def test_export_lstm_cell(tmp_path):
     for node in model.graph.node:
         if node.op_type == "FakeQuantize":
             onnx_num += 1
-    assert onnx_num == 12
+    assert onnx_num == 11
 
 
 @pytest.mark.parametrize(
@@ -418,7 +418,7 @@ class TestLSTM:
                 for name in cls.get_param_names(bias):
                     suffix = "_reverse" if d == 1 else ""
                     param = getattr(data, name)
-                    param_name = name + "_l{}{}".format(layer_idx, suffix)
+                    param_name = name + f"_l{layer_idx}{suffix}"
                     getattr(nn_lstm, param_name).data.copy_(param[i].data)
 
     @classmethod
@@ -454,7 +454,7 @@ def test_export_stacked_bi_lstm(tmp_path):
     for node in model.graph.node:
         if node.op_type == "FakeQuantize":
             onnx_num += 1
-    assert onnx_num == 46
+    assert onnx_num == 42
 
 
 class TestNumberOfNodes:
@@ -513,8 +513,8 @@ class TestNumberOfNodes:
         _ = model(test_data.x, test_hidden)
 
         # NB: below may always fail in debug due to superfluous 'cat' nodes
-        assert model.nncf.get_graph().get_nodes_count() == 124
-        assert len(counters) + 2 == 46  # 8 WQ + 36 AQ + 1 input AQ + 1 reset point AQ
+        assert model.nncf.get_graph().get_nodes_count() == 120
+        assert len(counters) + 2 == 42  # 8 WQ + 32 AQ + 1 input AQ + 1 reset point AQ
         for counter in counters.values():
             assert counter.count == p.seq_length
         assert counter_for_input_quantizer.count == 1

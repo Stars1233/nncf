@@ -2,7 +2,7 @@ name: API changes check
 permissions: read-all
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - develop
 
@@ -19,17 +19,22 @@ jobs:
     with:
       ref: "refs/pull/${{ github.event.number }}/merge"
   compare-api-doc-with-develop:
+    timeout-minutes: 30
     needs: call-build-api-doc
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     permissions:
       issues: write
     steps:
       - name: Download built HTML doc as artifact from previous step
-        uses: alehechka/download-tartifact@1195216b256562056097b175df17b167557f8681 # v2
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: html_doc_artifact
+      - run: |
+          tar -xvf artifact.tar
+          rm artifact.tar
+        shell: 'bash'
       - name: Checkout latest doc_pages branch tip
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: doc_pages
           path: previous_doc_state
@@ -41,37 +46,24 @@ jobs:
           echo ${CHANGED_FILES}
           CHANGED_FILES=$(echo $CHANGED_FILES | tr '\n' ' ')
           echo "changed_files=${CHANGED_FILES}" >> $GITHUB_OUTPUT
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        if: ${{ !(contains(steps.diff.outputs.changed_files, 'differ'))  && contains(github.event.pull_request.labels.*.name, 'API') }}
-        with:
-          github-token: ${{ secrets.ADD_LABELS_WITH_REST_API }}
-          script: |
-            github.rest.issues.removeLabel({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: "API"
-            })
-      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+
+      - name: Add label
         if: ${{ contains(steps.diff.outputs.changed_files, 'differ') }}
+        run: |
+          echo '{"pr_number": "${{ github.event.pull_request.number }}", "action": "add"}' > api_status.json
+
+      - name: Remove label
+        if: ${{ !(contains(steps.diff.outputs.changed_files, 'differ')) && contains(github.event.pull_request.labels.*.name, 'API') }}
+        run: |
+          echo '{"pr_number": "${{ github.event.pull_request.number }}", "action": "remove"}' > api_status.json
+
+      - name: No change label
+        if: ${{ !(contains(steps.diff.outputs.changed_files, 'differ')) && !contains(github.event.pull_request.labels.*.name, 'API') }}
+        run: |
+          echo '{"pr_number": "${{ github.event.pull_request.number }}", "action": "none"}' > api_status.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 #v4.6.0
         with:
-          github-token: ${{ secrets.ADD_LABELS_WITH_REST_API }}
-          script: |
-            github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ["API"]
-            })
-      - name: Add release label
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        if: ${{ contains(github.event.pull_request.base.ref, 'release_v') }}
-        with:
-          github-token: ${{ secrets.ADD_LABELS_WITH_REST_API }}
-          script: |
-            github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ["release_target"]
-            })
+          name: api_status
+          path: api_status.json

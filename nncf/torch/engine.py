@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,6 +15,8 @@ import torch
 from torch import nn
 
 from nncf.common.engine import Engine
+from nncf.common.utils.backend import BackendType
+from nncf.common.utils.backend import get_backend
 
 
 class PTEngine(Engine):
@@ -28,9 +30,9 @@ class PTEngine(Engine):
 
         :param model: Pytorch module to infer.
         """
-
         self._model = model
-        self._model.eval()
+        if get_backend(model) == BackendType.TORCH:
+            self._model.eval()
 
     def infer(
         self, input_data: Union[torch.Tensor, Tuple[torch.Tensor], Dict[str, torch.Tensor]]
@@ -41,7 +43,6 @@ class PTEngine(Engine):
         :param input_data: Inputs for the model.
         :return: Model outputs.
         """
-
         if isinstance(input_data, dict):
             return self._model(**input_data)
         if isinstance(input_data, tuple):

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -100,10 +100,11 @@ class PostTrainingQuantization(Algorithm):
         dataset: Optional[Dataset] = None,
     ) -> TModel:
         if dataset is None and len(self._pipeline.pipeline_steps) > 1:
-            raise ValueError(
+            msg = (
                 "A dataset is required for the post-training quantization "
                 "algorithm to collect statistics for intermediate models."
             )
+            raise ValueError(msg)
 
         step_index_to_statistics = None
         if statistic_points:

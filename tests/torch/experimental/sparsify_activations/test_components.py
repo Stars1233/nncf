@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -217,11 +217,7 @@ class TestPTSparsifyActivationsAlgoBackend:
         model = ThreeLinearModel()
         dataset = nncf.Dataset(torch.randint(0, 30, (3, 2, 8)))
         if compress_weights:
-            model = nncf.compress_weights(
-                model,
-                mode=nncf.CompressWeightsMode.INT8_SYM,
-                dataset=dataset,
-            )
+            model = nncf.compress_weights(model, mode=nncf.CompressWeightsMode.INT8_SYM, dataset=dataset)
         else:
             model = wrap_model(
                 model,

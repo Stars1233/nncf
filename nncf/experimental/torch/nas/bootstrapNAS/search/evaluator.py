@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -216,7 +216,6 @@ class AccuracyEvaluator(BaseEvaluator):
         :param state: dict with state that should be used for updating this evaluator
         :return:
         """
-
         super().update_from_state(state)
         new_dict = state.copy()
         self._is_top1 = new_dict["is_top1"]

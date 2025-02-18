@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -29,7 +29,7 @@ from nncf.openvino.graph.transformations.commands import OVTargetPoint
 from nncf.openvino.graph.transformations.commands import OVWeightUpdateCommand
 from nncf.quantization.algorithms.channel_alignment.backend import LayoutDescriptor
 from nncf.quantization.algorithms.channel_alignment.openvino_backend import OVChannelAlignmentAlgoBackend
-from tests.post_training.test_templates.test_channel_alignment import TemplateTestChannelAlignment
+from tests.cross_fw.test_templates.test_channel_alignment import TemplateTestChannelAlignment
 
 
 class TestOVChannelAlignment(TemplateTestChannelAlignment):

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -35,6 +35,7 @@ QUANTIZATION_EXPORT_TO_ONNX_STANDARD_OPS = False
 QUANTIZATION_OVERFLOW_FIX = "enable"
 QUANTIZATION_BITS = 8
 QUANTIZATION_PER_CHANNEL = False
+QUANTIZATION_NARROW_RANGE = False
 QUANTIZATION_LOGARITHM_SCALE = False
 
 ACTIVATIONS_QUANT_START_EPOCH = 1

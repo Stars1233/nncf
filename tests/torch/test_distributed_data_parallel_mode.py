@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -96,4 +96,5 @@ def test_is_ddp_freezing(waiting_time: float) -> None:
             for process in ctx.processes:
                 if process.is_alive():
                     process.terminate()
-            raise TimeoutError("DDP wrapper may be freezing")
+            msg = "DDP wrapper may be freezing"
+            raise TimeoutError(msg)

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -32,15 +32,11 @@ from nncf.quantization.algorithms.accuracy_control.evaluator import Evaluator
 from nncf.quantization.algorithms.post_training.algorithm import PostTrainingQuantization
 from nncf.quantization.quantize_model import quantize_with_tune_hyperparams
 from nncf.quantization.quantize_model import warning_model_no_batchwise_support
-from nncf.quantization.telemetry_extractors import CompressionStartedWithQuantizeApi
 from nncf.scopes import IgnoredScope
-from nncf.telemetry import tracked_function
-from nncf.telemetry.events import NNCF_ONNX_CATEGORY
 
 TTensor = TypeVar("TTensor")
 
 
-@tracked_function(NNCF_ONNX_CATEGORY, [CompressionStartedWithQuantizeApi(), "target_device", "preset"])
 def quantize_impl(
     model: onnx.ModelProto,
     calibration_dataset: Dataset,
@@ -57,11 +53,14 @@ def quantize_impl(
     Implementation of the `quantize()` method for the ONNX backend.
     """
     if target_device == TargetDevice.CPU_SPR:
-        raise nncf.ValidationError("target_device == CPU_SPR is not supported.")
+        msg = "target_device == CPU_SPR is not supported."
+        raise nncf.ValidationError(msg)
     if mode is not None:
-        raise ValueError(f"mode={mode} is not supported")
+        msg = f"mode={mode} is not supported"
+        raise ValueError(msg)
     if model.opset_import[0].version < 10:
-        raise nncf.ValidationError("ONNX models with opset version < 10 do not support quantization.")
+        msg = "ONNX models with opset version < 10 do not support quantization."
+        raise nncf.ValidationError(msg)
     if model.opset_import[0].version < 13:
         nncf_logger.warning(
             "ONNX models with 10 < opset version < 13 do not support per-channel quantization."

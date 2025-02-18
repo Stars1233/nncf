@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -43,9 +43,8 @@ class RBSparsifyingWeight(NNCFOperation):
         :param layer: Layer which needs to be sparsifyed.
         """
         if input_type is not InputType.WEIGHTS:
-            raise ValueError(
-                "RB Sparsity mask operation could not be applied to input of the layer: {}".format(layer.name)
-            )
+            msg = f"RB Sparsity mask operation could not be applied to input of the layer: {layer.name}"
+            raise ValueError(msg)
 
         mask = layer.add_weight(
             name + "_mask",

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -269,13 +269,13 @@ class DDPG:
         if output is None:
             return
 
-        self.actor.load_state_dict(torch.load("{}/actor.pkl".format(output)))
+        self.actor.load_state_dict(torch.load(f"{output}/actor.pkl"))
 
-        self.critic.load_state_dict(torch.load("{}/critic.pkl".format(output)))
+        self.critic.load_state_dict(torch.load(f"{output}/critic.pkl"))
 
     def save_model(self, output):
-        torch.save(self.actor.state_dict(), "{}/actor.pkl".format(output))
-        torch.save(self.critic.state_dict(), "{}/critic.pkl".format(output))
+        torch.save(self.actor.state_dict(), f"{output}/actor.pkl")
+        torch.save(self.critic.state_dict(), f"{output}/critic.pkl")
 
     def seed(self, s):
         torch.manual_seed(s)

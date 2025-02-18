@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -58,14 +58,15 @@ def _read_coco_annotation(annotation_file, images_folder):
     annotation = json_annotation["annotations"]
 
     for imgAnnotation in annotation:
-        img_path = images_folder / "{0:012d}.jpg".format(imgAnnotation["image_id"])
+        img_path = images_folder / "{:012d}.jpg".format(imgAnnotation["image_id"])
 
         name = str(imgAnnotation["category_id"])
         label_idx = COCO_NAMES.index(name)
         bbox = imgAnnotation["bbox"]
 
         if bbox is None or bbox == "":
-            raise ValueError("No annotation for {}".format(img_path))
+            msg = f"No annotation for {img_path}"
+            raise ValueError(msg)
 
         bbox[2] = bbox[0] + bbox[2]
         bbox[3] = bbox[1] + bbox[3]

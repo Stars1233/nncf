@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -37,14 +37,17 @@ def backbone_generator(params):
                 norm_activation=norm_activation_generator(params.model_params.norm_activation),
             )
         else:
-            raise ValueError("Backbone {} is not supported for {} model.".format(backbone_name, params.model))
+            msg = f"Backbone {backbone_name} is not supported for {params.model} model."
+            raise ValueError(msg)
     elif params.model == "YOLOv4":
         if backbone_name == "darknet":
             backbone_fn = darknet.CSPDarknet53()
         else:
-            raise ValueError("Backbone {} is not supported for {} model.".format(backbone_name, params.model))
+            msg = f"Backbone {backbone_name} is not supported for {params.model} model."
+            raise ValueError(msg)
     else:
-        raise ValueError("Model {} is not supported.".format(params.model))
+        msg = f"Model {params.model} is not supported."
+        raise ValueError(msg)
 
     return backbone_fn
 

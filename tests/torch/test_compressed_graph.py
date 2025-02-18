@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -43,8 +43,8 @@ from nncf.torch.nncf_network import NNCFNetwork
 from nncf.torch.quantization.algo import QuantizationBuilder
 from nncf.torch.utils import get_all_modules_by_type
 from nncf.torch.utils import get_model_device
-from tests.shared.nx_graph import compare_nx_graph_with_reference
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.nx_graph import compare_nx_graph_with_reference
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.torch import test_models
 from tests.torch.helpers import create_compressed_model_and_algo_for_test
 from tests.torch.helpers import get_empty_config
@@ -55,6 +55,7 @@ from tests.torch.test_models.synthetic import ArangeModel
 from tests.torch.test_models.synthetic import Baddbmm
 from tests.torch.test_models.synthetic import ConvBNLeakyReLU
 from tests.torch.test_models.synthetic import ConvGeluGetItem
+from tests.torch.test_models.synthetic import ConvolutionWithMinModel
 from tests.torch.test_models.synthetic import ConvRelu6HSwishHSigmoid
 from tests.torch.test_models.synthetic import EmbeddingCatLinearModel
 from tests.torch.test_models.synthetic import EmbeddingSumModel
@@ -70,6 +71,7 @@ from tests.torch.test_models.synthetic import MultiOutputSameTensorModel
 from tests.torch.test_models.synthetic import OrdinaryModelWithRecurrentInName
 from tests.torch.test_models.synthetic import PoolUnPool
 from tests.torch.test_models.synthetic import ReshapeModel
+from tests.torch.test_models.synthetic import ScaledDotProductModel
 from tests.torch.test_models.synthetic import ShiftScaleParametrized
 from tests.torch.test_models.synthetic import TransposeModel
 
@@ -108,7 +110,9 @@ def get_full_path_to_the_graph(path_to_dot: str, graph_dir: str) -> None:
     return path_to_dot
 
 
-def check_graph(graph: PTNNCFGraph, path_to_dot: str, graph_dir: str, sort_dot_graph: bool = True) -> None:
+def check_graph(
+    graph: PTNNCFGraph, path_to_dot: str, graph_dir: str, sort_dot_graph: bool = True, extended: bool = False
+) -> None:
     """
     Builds the nx.Digraph for the structural analysis from 'graph', gets the full path to the reference graph from
     'path_to_dot' and 'graph_dir'. Then checks that the reference and the built graphs are identical.
@@ -117,10 +121,11 @@ def check_graph(graph: PTNNCFGraph, path_to_dot: str, graph_dir: str, sort_dot_g
     :param path_to_dot: The filename of the reference graph file.
     :param graph_dir: The parent directory of .dot file.
     :param sort_dot_graph: If True the dumped graph will be sorted, if False - otherwise.
+    :param extended: If true the dumped graph will be extended with edge params and other meta.
     :return: None
     """
 
-    nx_graph = graph.get_graph_for_structure_analysis()
+    nx_graph = graph.get_graph_for_structure_analysis(extended=extended)
     path_to_dot = get_full_path_to_the_graph(path_to_dot, graph_dir)
     compare_nx_graph_with_reference(nx_graph, path_to_dot, sort_dot_graph=sort_dot_graph)
 
@@ -153,7 +158,7 @@ def gnmt_forward_fn(seq_len, batch_size, vocab_size):
 
         def gen_packed_sequence():
             seq_list = []
-            seq_lens = torch.LongTensor((batch_size_)).random_(1, seq_len_ + 1).type(torch.int32).to(device)
+            seq_lens = torch.LongTensor(batch_size_).random_(1, seq_len_ + 1).type(torch.int32).to(device)
             seq_lens = torch.sort(seq_lens, descending=True).values
             for seq_size in seq_lens:
                 seq_list.append(torch.LongTensor(seq_size.item()).random_(1, vocab_size_).to(device))
@@ -731,7 +736,7 @@ SYNTHETIC_MODEL_DESC_LIST = [
     SingleLayerModelDesc(model_name="relu", layer=torch.relu),
     SingleLayerModelDesc(model_name="relu_", layer=torch.relu_),
     SingleLayerModelDesc(model_name="max", layer=torch.max),
-    SingleLayerModelDesc(model_name="min", layer=torch.min),
+    GeneralModelDesc(model_builder=ConvolutionWithMinModel, input_sample_sizes=([1, 1, 5, 5])),
     GeneralModelDesc(model_builder=ArangeModel),
     SingleLayerModelDesc(model_name="transpose", layer=partial(torch.transpose, dim0=0, dim1=0)),
     GeneralModelDesc(model_builder=TransposeModel, input_sample_sizes=([1])),
@@ -798,6 +803,7 @@ SYNTHETIC_MODEL_DESC_LIST = [
         wrap_inputs_fn=partial(n_inputs_fn, nargs=3),
     ),
     GeneralModelDesc(model_builder=MHA_single_input, input_sample_sizes=(MHA_single_input.INPUT_SIZES,)),
+    GeneralModelDesc(model_builder=ScaledDotProductModel, input_sample_sizes=(ScaledDotProductModel.INPUT_SIZES,)),
     GeneralModelDesc(
         model_name="OrdinaryModelWithRecurrentInName",
         model_builder=OrdinaryModelWithRecurrentInName,
@@ -913,7 +919,7 @@ def prepare_potential_quantizer_graph(graph: PTNNCFGraph, quantizer_setup: Singl
         node_name = nncf_node.node_name
         if node_name in pre_hooked_quantizers_activations_attr:
             input_port_id, qconf_str = pre_hooked_quantizers_activations_attr[node_name]
-            label = "Quantizer: {}".format(qconf_str)
+            label = f"Quantizer: {qconf_str}"
             additional_node_attrs = dict(label=label, color="purple", id=nncf_node.node_id)
 
             pre_hook_quantizer_node_key = node_name + "|IN" + str(input_port_id)
@@ -937,7 +943,7 @@ def prepare_potential_quantizer_graph(graph: PTNNCFGraph, quantizer_setup: Singl
 
         if node_name in post_hooked_quantizers_activations_attr:
             qconf_str = post_hooked_quantizers_activations_attr[node_name]
-            label = "Quantizer: {}".format(qconf_str)
+            label = f"Quantizer: {qconf_str}"
             additional_node_attrs = dict(label=label, color="purple", id=nncf_node.node_id)
 
             post_hook_quantizer_node_key = node_name + "|OUT"
@@ -951,7 +957,7 @@ def prepare_potential_quantizer_graph(graph: PTNNCFGraph, quantizer_setup: Singl
             nx_graph.add_edge(node_key, post_hook_quantizer_node_key)
 
         if node_name in quantizers_weights_attr:
-            label = "Quantizer: {}".format(quantizers_weights_attr[node_name])
+            label = f"Quantizer: {quantizers_weights_attr[node_name]}"
             weight_quantizer_node_key = node_name + "|WEIGHT"
             nx_graph.add_node(weight_quantizer_node_key, label=label, color="purple", id=nncf_node.node_id)
             nx_graph.add_edge(weight_quantizer_node_key, node_key)

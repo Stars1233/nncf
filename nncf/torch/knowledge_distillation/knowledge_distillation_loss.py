@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -92,7 +92,6 @@ class KnowledgeDistillationLoss(PTCompressionLoss):
             container with deterministic traversal.
         :return: knowledge distillation loss value
         """
-
         compressed_model_outputs_nested_obj_indexing = NestedObjectIndex([compressed_model_outputs])
         orig_model_outputs_nested_obj_indexing = NestedObjectIndex([orig_model_outputs])
         compressed_model_loss_outputs_nested_obj_indexing = list(

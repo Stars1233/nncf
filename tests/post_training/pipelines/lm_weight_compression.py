@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -8,13 +8,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import gc
 import os
 import re
 import shutil
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import numpy as np
 import openvino as ov
@@ -28,10 +29,18 @@ from transformers import AutoTokenizer
 from whowhatbench import Evaluator
 
 import nncf
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.post_training.pipelines.base import BackendType
 from tests.post_training.pipelines.base import BaseTestPipeline
+from tests.post_training.pipelines.base import ErrorReason
+from tests.post_training.pipelines.base import ErrorReport
+from tests.post_training.pipelines.base import NumCompressNodes
+from tests.post_training.pipelines.base import RunInfo
 from tests.post_training.pipelines.base import StatsFromOutput
-from tests.shared.paths import TEST_ROOT
+from tests.post_training.pipelines.base import get_num_fq_int4_int8
+from tools.memory_monitor import MemoryType
+from tools.memory_monitor import MemoryUnit
+from tools.memory_monitor import memory_monitor_context
 
 
 @dataclass
@@ -58,7 +67,7 @@ class WCTimeStats(StatsFromOutput):
         time_regex = r".*•\s(.*)\s•.*"
         for line in stdout.splitlines():
             for attr_name, prefix_regex in zip(self.VAR_NAMES, self.REGEX_PREFIX):
-                match = re.search(r"{}{}".format(prefix_regex, time_regex), line)
+                match = re.search(f"{prefix_regex}{time_regex}", line)
                 if match:
                     setattr(self, attr_name, match.group(1))
                 continue
@@ -68,10 +77,53 @@ class WCTimeStats(StatsFromOutput):
         return dict(zip(self.STAT_NAMES, VARS))
 
 
+@dataclass
+class WCNumCompressNodes(NumCompressNodes):
+    num_int4: Optional[int] = None
+
+    def get_data(self):
+        data = super().get_data()
+        data["Num int4"] = self.num_int4
+        return data
+
+
 class LMWeightCompression(BaseTestPipeline):
     """Pipeline for casual language models from Hugging Face repository"""
 
     OV_MODEL_NAME = "openvino_model.xml"
+
+    def __init__(
+        self,
+        reported_name: str,
+        model_id: str,
+        backend: BackendType,
+        compression_params: dict,
+        output_dir: Path,
+        data_dir: Path,
+        reference_data: dict,
+        no_eval: bool,
+        run_benchmark_app: bool,
+        torch_compile_validation: bool = False,
+        params: dict = None,
+        batch_size: int = 1,
+        memory_monitor: bool = False,
+    ):
+        super().__init__(
+            reported_name,
+            model_id,
+            backend,
+            compression_params,
+            output_dir,
+            data_dir,
+            reference_data,
+            no_eval,
+            run_benchmark_app,
+            torch_compile_validation,
+            params,
+            batch_size,
+            memory_monitor,
+        )
+        self.run_info = RunInfo(model=reported_name, backend=self.backend, num_compress_nodes=WCNumCompressNodes())
 
     def prepare_model(self) -> None:
         is_stateful = self.params.get("is_stateful", False)
@@ -79,10 +131,13 @@ class LMWeightCompression(BaseTestPipeline):
         # load model
         if self.backend == BackendType.TORCH:
             if is_stateful:
-                raise RuntimeError(f"is_stateful={is_stateful} is not supported for PyTorch backend.")
+                msg = f"is_stateful={is_stateful} is not supported for PyTorch backend."
+                raise RuntimeError(msg)
 
             self.model_hf = AutoModelForCausalLM.from_pretrained(
-                self.model_id, torch_dtype=torch.float32, device_map="cpu"
+                self.model_id,
+                torch_dtype=torch.float32,
+                device_map="cpu",  # TODO (kshpv): add support of 'cuda', when supported
             )
             self.model = self.model_hf
         elif self.backend == BackendType.OV:
@@ -100,7 +155,8 @@ class LMWeightCompression(BaseTestPipeline):
                 )
             self.model = self.model_hf.model
         else:
-            raise RuntimeError(f"backend={self.backend.value} is not supported.")
+            msg = f"backend={self.backend.value} is not supported."
+            raise RuntimeError(msg)
 
         # dump FP32 model
         if not (self.fp32_model_dir / self.OV_MODEL_NAME).exists():
@@ -154,7 +210,7 @@ class LMWeightCompression(BaseTestPipeline):
                     inputs[name] = np.zeros(shape)
             if self.backend == BackendType.TORCH:
                 for input_name in inputs:
-                    inputs[input_name] = torch.from_numpy(inputs[input_name])
+                    inputs[input_name] = torch.from_numpy(inputs[input_name]).to(self.model_hf.device)
             return inputs
 
         return transform_fn
@@ -178,7 +234,21 @@ class LMWeightCompression(BaseTestPipeline):
 
         print("Weight compression...")
         start_time = time.perf_counter()
-        self.run_info.compression_memory_usage = memory_usage(self._compress, max_usage=True)
+        if self.memory_monitor:
+            self.run_info.compression_memory_usage_rss = -1
+            self.run_info.compression_memory_usage_system = -1
+            gc.collect()
+            with memory_monitor_context(
+                interval=0.1,
+                memory_unit=MemoryUnit.MiB,
+                return_max_value=True,
+                save_dir=self.output_model_dir / "wc_memory_logs",
+            ) as mmc:
+                self._compress()
+            self.run_info.compression_memory_usage_rss = mmc.memory_data[MemoryType.RSS]
+            self.run_info.compression_memory_usage_system = mmc.memory_data[MemoryType.SYSTEM]
+        else:
+            self.run_info.compression_memory_usage = memory_usage(self._compress, max_usage=True)
         self.run_info.time_compression = time.perf_counter() - start_time
 
     def collect_data_from_stdout(self, stdout: str):
@@ -190,33 +260,18 @@ class LMWeightCompression(BaseTestPipeline):
         if self.backend == BackendType.FP32:
             return
 
+        self.path_compressed_ir = self.output_model_dir / self.OV_MODEL_NAME
         if self.backend == BackendType.OV:
-            ov.serialize(self.model, self.output_model_dir / self.OV_MODEL_NAME)
+            ov.serialize(self.model, self.path_compressed_ir)
             self.model_hf._save_config(self.output_model_dir)
         elif self.backend == BackendType.TORCH:
-            export_from_model(self.model_hf, self.output_model_dir, stateful=False, compression_option="fp32")
-
-    def get_num_compressed(self) -> None:
-        """
-        Get number of the i8, u8, i4, u4 ops in the compressed IR.
-        """
-        num_int8 = 0
-        num_int4 = 0
-
-        if self.backend == BackendType.TORCH:
-            model = ov.Core().read_model(self.output_model_dir / self.OV_MODEL_NAME)
-        else:
-            model = self.model
-
-        for node in model.get_ops():
-            for i in range(node.get_output_size()):
-                if node.get_output_element_type(i).get_type_name() in ["i8", "u8"]:
-                    num_int8 += 1
-                if node.get_output_element_type(i).get_type_name() in ["i4", "u4"]:
-                    num_int4 += 1
-
-        self.run_info.num_compress_nodes.num_int8 = num_int8
-        self.run_info.num_compress_nodes.num_int4 = num_int4
+            export_from_model(
+                self.model_hf,
+                self.output_model_dir,
+                stateful=False,
+                compression_option="fp32",
+                device=self.model_hf.device,
+            )
 
     def run_bench(self) -> None:
         pass
@@ -242,7 +297,7 @@ class LMWeightCompression(BaseTestPipeline):
             **self.compression_params,
         )
 
-    def _validate(self):
+    def _validate(self) -> None:
         is_stateful = self.params.get("is_stateful", False)
         core = ov.Core()
 
@@ -256,7 +311,12 @@ class LMWeightCompression(BaseTestPipeline):
         if os.getenv("NNCF_TEST_REGEN_DOT") is not None:
             print("Collection ground-truth reference data")
             model_gold = OVModelForCausalLM.from_pretrained(
-                self.fp32_model_dir, trust_remote_code=True, load_in_8bit=False, compile=False, stateful=is_stateful
+                self.fp32_model_dir,
+                trust_remote_code=True,
+                load_in_8bit=False,
+                compile=False,
+                stateful=is_stateful,
+                ov_config={"KV_CACHE_PRECISION": "f16"},
             )
             evaluator = Evaluator(base_model=model_gold, tokenizer=self.preprocessor, metrics=("similarity",))
             evaluator.dump_gt(str(gt_data_path))
@@ -275,7 +335,7 @@ class LMWeightCompression(BaseTestPipeline):
                 load_in_8bit=False,
                 compile=False,
                 stateful=is_stateful,
-                ov_config={"DYNAMIC_QUANTIZATION_GROUP_SIZE": "0"},
+                ov_config={"DYNAMIC_QUANTIZATION_GROUP_SIZE": "0", "KV_CACHE_PRECISION": "f16"},
             )
         print("Evaluation of the target model")
         _, all_metrics = evaluator.score(compressed_model_hf)
@@ -283,18 +343,36 @@ class LMWeightCompression(BaseTestPipeline):
         self.run_info.metric_name = "Similarity"
         self.run_info.metric_value = round(similarity, 5)
 
-        num_int4_reference = self.reference_data.get("num_int4")
-        num_int8_reference = self.reference_data.get("num_int8")
+    def get_num_compressed(self) -> None:
+        ie = ov.Core()
+        model = ie.read_model(model=self.path_compressed_ir)
+        _, num_int4, num_int8 = get_num_fq_int4_int8(model)
 
-        num_int4_value = self.run_info.num_compress_nodes.num_int4
-        num_int8_value = self.run_info.num_compress_nodes.num_int8
+        self.run_info.num_compress_nodes.num_int8 = num_int8
+        self.run_info.num_compress_nodes.num_int4 = num_int4
 
-        if num_int4_reference != num_int4_value:
-            status_msg = f"Regression: The number of int4 ops is different \
-                than reference {num_int4_reference} != {num_int4_value}"
-            raise ValueError(status_msg)
+    def collect_errors(self) -> List[ErrorReport]:
+        errors = super().collect_errors()
+        errors.extend(collect_int4_int8_num_errors(self.run_info, self.reference_data))
+        return errors
 
-        if num_int8_reference != num_int8_value:
-            status_msg = f"Regression: The number of int8 ops is different \
-                than reference {num_int8_reference} != {num_int8_value}"
-            raise ValueError(status_msg)
+
+def collect_int4_int8_num_errors(run_info: RunInfo, reference_data: dict) -> List[ErrorReport]:
+    errors = []
+    num_int4_reference = reference_data.get("num_int4")
+    num_int8_reference = reference_data.get("num_int8")
+    num_int4_value = run_info.num_compress_nodes.num_int4
+    num_int8_value = run_info.num_compress_nodes.num_int8
+
+    if num_int4_reference is not None and num_int4_reference != num_int4_value:
+        status_msg = (
+            f"Regression: The number of int4 ops is different than reference {num_int4_reference} != {num_int4_value}"
+        )
+        errors.append(ErrorReport(ErrorReason.NUM_COMPRESSED, status_msg))
+
+    if num_int8_reference is not None and num_int8_reference != num_int8_value:
+        status_msg = (
+            f"Regression: The number of int8 ops is different than reference {num_int8_reference} != {num_int8_value}"
+        )
+        errors.append(ErrorReport(ErrorReason.NUM_COMPRESSED, status_msg))
+    return errors

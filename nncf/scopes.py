@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,6 +48,11 @@ def get_ignored_node_names_from_subgraph(graph: NNCFGraph, subgraph: Subgraph) -
     ignored_names = set()
     for start_node_name in subgraph.inputs:
         for end_node_name in subgraph.outputs:
+            if start_node_name == end_node_name:
+                # For networkx<3.3 nx.get_all_simple_paths returns empty path for this case
+                node = graph.get_node_by_name(start_node_name)
+                ignored_names.add(node.node_name)
+                continue
             for path in graph.get_all_simple_paths(start_node_name, end_node_name):
                 for node_key in path:
                     node = graph.get_node_by_key(node_key)
@@ -59,7 +64,7 @@ def get_ignored_node_names_from_subgraph(graph: NNCFGraph, subgraph: Subgraph) -
 @api(canonical_alias="nncf.IgnoredScope")
 @dataclass
 class IgnoredScope:
-    """
+    r"""
     Provides an option to specify portions of model to be excluded from compression.
 
     The ignored scope defines model sub-graphs that should be excluded from the compression process such as
@@ -136,14 +141,15 @@ def convert_ignored_scope_to_list(ignored_scope: Optional[IgnoredScope]) -> List
     :param ignored_scope: The ignored scope.
     :return: An ignored scope in the legacy format as list.
     """
-    results = []
+    results: List[str] = []
     if ignored_scope is None:
         return results
     results.extend(ignored_scope.names)
     for p in ignored_scope.patterns:
         results.append("{re}" + p)
     if ignored_scope.types:
-        raise nncf.InternalError("Legacy ignored scope format does not support operation types")
+        msg = "Legacy ignored scope format does not support operation types"
+        raise nncf.InternalError(msg)
     return results
 
 
@@ -159,7 +165,7 @@ def get_matched_ignored_scope_info(
     :param nncf_graphs: Graphs.
     :returns: Matched ignored scope along with all matches.
     """
-    names, patterns, types, subgraphs_numbers = set(), set(), set(), set()
+    names, patterns, types, subgraphs_numbers = set(), set(), set(), set()  # type: ignore
     matches = {"names": names, "patterns": set(), "types": set(), "subgraphs": set()}
 
     for graph in nncf_graphs:

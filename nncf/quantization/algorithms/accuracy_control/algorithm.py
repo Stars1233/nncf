@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -55,9 +55,8 @@ def get_algo_backend(backend: BackendType) -> AccuracyControlAlgoBackend:
 
         return ONNXAccuracyControlAlgoBackend()
 
-    raise nncf.UnsupportedBackendError(
-        f"Cannot create the backend for the accuracy control algorithm because {backend} is not supported."
-    )
+    msg = f"Cannot create the backend for the accuracy control algorithm because {backend} is not supported."
+    raise nncf.UnsupportedBackendError(msg)
 
 
 def _create_message(nodes: Iterable[NNCFNode]) -> str:

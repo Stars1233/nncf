@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,7 @@ from nncf.common.factory import NNCFGraphFactory
 from nncf.onnx.graph.node_utils import get_bias_value
 from nncf.onnx.graph.node_utils import is_node_with_bias
 from nncf.quantization.algorithms.fast_bias_correction.onnx_backend import ONNXFastBiasCorrectionAlgoBackend
-from tests.post_training.test_templates.test_fast_bias_correction import TemplateTestFBCAlgorithm
+from tests.cross_fw.test_templates.test_fast_bias_correction import TemplateTestFBCAlgorithm
 
 
 def get_data_from_node(model: onnx.ModelProto, node_name: str):
@@ -68,4 +68,5 @@ class TestONNXFBCAlgorithm(TemplateTestFBCAlgorithm):
             # TODO(AlexanderDokuchaev): return atol=0.0001 after fix 109189
             assert np.all(np.isclose(bias_value, ref_bias, atol=0.01)), f"{bias_value} != {ref_bias}"
             return
-        raise ValueError("Not found node with bias")
+        msg = "Not found node with bias"
+        raise ValueError(msg)

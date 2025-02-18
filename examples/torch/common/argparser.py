@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -205,5 +205,6 @@ def get_common_argument_parser():
 def parse_args(parser, argv):
     args = parser.parse_args(argv)
     if "export" in args.mode and args.export_model_path is None:
-        raise nncf.ValidationError("--mode export requires --export-model-path argument to be set")
+        msg = "--mode export requires --export-model-path argument to be set"
+        raise nncf.ValidationError(msg)
     return args

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -64,10 +64,11 @@ class GPT(PTQTestPipeline):
         else:
 
             def transform_func(data):
+                ids = np.expand_dims(data["input_ids"], axis=0)
                 inputs = {
-                    "input_ids": np.expand_dims(data["input_ids"], axis=0),
+                    "input_ids": ids,
                     "attention_mask": np.expand_dims(data["attention_mask"], axis=0),
-                    "position_ids": np.ones((1, 128), dtype=np.int64),
+                    "position_ids": np.ones(ids.shape, dtype=np.int64),
                     "beam_idx": np.zeros((1,), dtype=np.int64),
                 }
                 return inputs
@@ -94,6 +95,3 @@ class GPT(PTQTestPipeline):
             self.calibration_dataset = calibration_dataset
         else:
             self.calibration_dataset = nncf.Dataset(calibration_dataset, self.get_transform_calibration_fn())
-
-    def _validate(self):
-        pass

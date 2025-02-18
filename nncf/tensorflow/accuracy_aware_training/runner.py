@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,7 +12,6 @@
 import os.path as osp
 
 import tensorflow as tf
-import tensorflow_addons as tfa
 from tensorflow.keras.optimizers import schedules
 
 from nncf.common.accuracy_aware_training.runner import BaseAccuracyAwareTrainingRunner
@@ -35,14 +34,14 @@ class TFAccuracyAwareTrainingRunner(BaseAccuracyAwareTrainingRunner):
     def reset_training(self):
         self.configure_optimizers()
 
-        if isinstance(self.optimizer, tfa.optimizers.MultiOptimizer):
-            optimizers = [optimizer_spec.optimizer for optimizer_spec in self.optimizer.optimizer_specs]
-        else:
-            optimizers = self.optimizer if isinstance(self.optimizer, (tuple, list)) else [self.optimizer]
+        optimizers = self.optimizer if isinstance(self.optimizer, (tuple, list)) else [self.optimizer]
 
         for optimizer in optimizers:
             scheduler = optimizer.learning_rate
-            if isinstance(scheduler, tf.Variable):
+            # pylint: disable=protected-access
+            if isinstance(scheduler, tf.Variable) and not isinstance(
+                optimizer._learning_rate, schedules.LearningRateSchedule
+            ):
                 scheduler = scheduler * self.base_lr_reduction_factor_during_search
                 optimizer.learning_rate = scheduler
                 optimizer.lr = scheduler
@@ -115,6 +114,7 @@ class TFAdaptiveCompressionLevelTrainingRunner(
         base_path = osp.join(self._checkpoint_save_dir, "acc_aware_checkpoint")
         if is_best:
             if compression_rate is None:
-                raise ValueError("Compression rate cannot be None")
+                msg = "Compression rate cannot be None"
+                raise ValueError(msg)
             return f"{base_path}_best_{compression_rate:.3f}{extension}"
         return f"{base_path}_last{extension}"

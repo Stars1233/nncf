@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,12 +25,13 @@ from nncf.quantization.algorithms.layerwise.engine import LayerwiseEngine
 from nncf.quantization.algorithms.weight_compression.backend import WeightCompressionAlgoBackend
 from nncf.quantization.algorithms.weight_compression.config import WeightCompressionConfig
 from nncf.quantization.algorithms.weight_compression.config import WeightCompressionParameters
+from nncf.quantization.algorithms.weight_compression.scale_estimation import ScaleEstimation
 from nncf.quantization.algorithms.weight_compression.weight_lowering import calculate_integer_quantization_params
 from nncf.quantization.algorithms.weight_compression.weight_lowering import calculate_nf4_scale
-from nncf.quantization.algorithms.weight_compression.weight_lowering import calculate_nf4_weight
 from nncf.quantization.algorithms.weight_compression.weight_lowering import calculate_quantized_weight
-from nncf.quantization.algorithms.weight_compression.weight_lowering import decompress_nf4_weight
-from nncf.quantization.algorithms.weight_compression.weight_lowering import do_dequantization
+from nncf.quantization.algorithms.weight_compression.weight_lowering import do_int_dequantization
+from nncf.quantization.algorithms.weight_compression.weight_lowering import do_nf4_dequantization
+from nncf.quantization.algorithms.weight_compression.weight_lowering import do_nf4_quantization
 from nncf.tensor import Tensor
 from nncf.tensor import functions as fns
 from nncf.tensor.definitions import TensorDataType
@@ -44,10 +45,7 @@ class GPTQ:
     """
 
     def __init__(
-        self,
-        damp_percent: float = 0.1,
-        block_size: int = 128,
-        subset_size: int = 128,
+        self, damp_percent: float = 0.1, block_size: int = 128, subset_size: int = 128, scale_estimation: bool = False
     ):
         """
         :param damp_percent: The percent of the average Hessian diagonal to use for dampening,
@@ -58,6 +56,7 @@ class GPTQ:
         self._damp_percent = damp_percent
         self._block_size = block_size
         self._subset_size = subset_size
+        self._scale_estimation = scale_estimation
         self._backend = None
         self._backend_entity = None
 
@@ -75,9 +74,8 @@ class GPTQ:
 
             self._backend_entity = OVWeightCompressionAlgoBackend(model)
         else:
-            raise nncf.UnsupportedBackendError(
-                f"Cannot return backend-specific entity because {self._backend.value} is not supported!"
-            )
+            msg = f"Cannot return backend-specific entity because {self._backend.value} is not supported!"
+            raise nncf.UnsupportedBackendError(msg)
 
     def apply(
         self,
@@ -124,10 +122,9 @@ class GPTQ:
                 CompressWeightsMode.INT8_SYM,
             ]:
                 continue
-            assert len(inputs) == 1
             _, input_tensors = next(iter(inputs.items()))
             hessian = self._calculate_hessian(node, input_tensors)
-            scale, zero_point = self._quantize_weights(model, graph, wc_params, hessian)
+            scale, zero_point = self._quantize_weights(model, graph, wc_params, hessian, input_tensors)
             scales[wc_params.weight_name] = scale
             zero_points[wc_params.weight_name] = zero_point
 
@@ -171,9 +168,11 @@ class GPTQ:
         nsamples = 0
 
         if node.metatype in self._backend_entity.convolution_metatypes:
-            raise RuntimeError("Convolution metatypes are not supported")
+            msg = "Convolution metatypes are not supported"
+            raise nncf.UnsupportedModelError(msg)
         if node.layer_attributes.input_attributes["transpose"]:
-            raise RuntimeError("Transpose is not supported")
+            msg = "Transposed input is not supported"
+            raise nncf.UnsupportedModelError(msg)
 
         hessian = fns.zeros(
             (inputs[0].shape[-1], inputs[0].shape[-1]), backend=inputs[0].backend, dtype=TensorDataType.float32
@@ -193,7 +192,12 @@ class GPTQ:
         return hessian
 
     def _quantize_weights(
-        self, model: TModel, graph: NNCFGraph, wc_params: WeightCompressionParameters, hessian: Tensor
+        self,
+        model: TModel,
+        graph: NNCFGraph,
+        wc_params: WeightCompressionParameters,
+        hessian: Tensor,
+        inputs: List[Tensor],
     ):
         """
         Quantizes the weights of the model based on the calculated Hessian matrix.
@@ -205,9 +209,11 @@ class GPTQ:
         :return: Scales and zero points used for quantization.
         """
         if wc_params.node_with_weight.metatype in self._backend_entity.convolution_metatypes:
-            raise RuntimeError("Convolution metatypes are not supported")
+            msg = "Convolution metatypes are not supported"
+            raise RuntimeError(msg)
         if not wc_params.node_with_weight.layer_attributes.constant_attributes[wc_params.weight_port_id]["transpose"]:
-            raise RuntimeError("Transpose is not supported")
+            msg = "Transpose is not supported"
+            raise RuntimeError(msg)
 
         weight_tensor = self._backend_entity.get_weight(
             wc_params.node_with_weight, wc_params.weight_port_id, model, graph
@@ -260,19 +266,34 @@ class GPTQ:
                         scale = calculate_nf4_scale(weight_tensor[:, (i1 + i) : (i1 + i + group_size)], reduction_axes)
                         scales.append(scale)
                     else:
-                        scale, zero_point = calculate_integer_quantization_params(
-                            weight_tensor[:, (i1 + i) : (i1 + i + group_size)], reduction_axes, block_compression_config
-                        )
+                        if self._scale_estimation and block_compression_config.num_bits == 4:
+                            activations = [inp[..., (i1 + i) : (i1 + i + group_size)] for inp in inputs]
+                            wc_statistics = ScaleEstimation.activations_to_wc_statistics(activations)
+                            scale, zero_point = ScaleEstimation.calculate_quantization_params(
+                                wc_statistics,
+                                weight_tensor[:, (i1 + i) : (i1 + i + group_size)],
+                                reduction_axes,
+                                block_compression_config,
+                            )
+                        else:
+                            scale, zero_point = calculate_integer_quantization_params(
+                                weight_tensor[:, (i1 + i) : (i1 + i + group_size)],
+                                reduction_axes,
+                                block_compression_config,
+                            )
                         scales.append(scale)
                         zero_points.append(zero_point)
+
                 if block_compression_config.mode == CompressWeightsMode.NF4:
-                    compressed_weights = calculate_nf4_weight(fns.unsqueeze(weight_col, 1), scales[-1])
-                    quantized_col = decompress_nf4_weight(compressed_weights, scales[-1])
+                    compressed_weights = do_nf4_quantization(
+                        fns.unsqueeze(weight_col, 1), scales[-1], is_normalized_weight=False
+                    )
+                    quantized_col = do_nf4_dequantization(compressed_weights, scales[-1], reduction_axis=-1)
                 else:
                     compressed_weights = calculate_quantized_weight(
                         fns.unsqueeze(weight_col, 1), block_compression_config, scales[-1], zero_points[-1]
                     )
-                    quantized_col = do_dequantization(compressed_weights, scales[-1], zero_points[-1])
+                    quantized_col = do_int_dequantization(compressed_weights, scales[-1], zero_points[-1])
                 quantized_col = fns.flatten(quantized_col)
                 quantized_block[:, i] = quantized_col
                 loss_block[:, i] = (weight_col - quantized_col) ** 2 / hessian_diag_val**2

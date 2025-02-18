@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -43,7 +43,8 @@ def main(argv):
                 break
 
     if start_key is None:
-        raise nncf.InternalError("Could not find the node with ID {} to start from!".format(args.start_id))
+        msg = f"Could not find the node with ID {args.start_id} to start from!"
+        raise nncf.InternalError(msg)
 
     for edge in nx.edge_bfs(graph, start_key, orientation="ignore"):
         from_key, to_key, _ = edge

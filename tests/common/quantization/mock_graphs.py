@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -17,7 +17,6 @@ import networkx as nx
 
 from nncf.common.graph import NNCFGraph
 from nncf.common.graph import NNCFNode
-from nncf.common.graph import NNCFNodeName
 from nncf.common.graph.layer_attributes import BaseLayerAttributes
 from nncf.common.graph.layer_attributes import ConvolutionLayerAttributes
 from nncf.common.graph.layer_attributes import Dtype
@@ -359,7 +358,7 @@ def get_mock_model_graph_with_broken_output_edge_pattern(
     return get_nncf_graph_from_mock_nx_graph(mock_nx_graph)
 
 
-def get_ip_graph_for_test(nncf_graph: NNCFGraph, weighted_node_names: List[NNCFNodeName] = None) -> InsertionPointGraph:
+def get_ip_graph_for_test(nncf_graph: NNCFGraph) -> InsertionPointGraph:
     pre_hooks = []
     post_hooks = []
     for node in nncf_graph.get_all_nodes():
@@ -374,14 +373,8 @@ def get_ip_graph_for_test(nncf_graph: NNCFGraph, weighted_node_names: List[NNCFN
         ip = PostHookInsertionPoint(node.node_name)
         post_hooks.append(ip)
 
-    weighted_target_points = None
-    if weighted_node_names is not None:
-        weighted_target_points = []
-        for name in weighted_node_names:
-            weighted_target_points.append(name)
     ip_graph = InsertionPointGraph(
         nncf_graph,
-        weight_modifiable_node_names=weighted_target_points,
         allowed_pre_hook_insertion_points=pre_hooks,
         allowed_post_hook_insertion_points=post_hooks,
     )
@@ -396,7 +389,7 @@ def get_randomly_connected_model_graph(op_name_keys: Set[str]) -> nx.DiGraph:
     graph_len = len(op_name_keys)
     mock_graph = nx.generators.gnc_graph(graph_len, None, 0)
 
-    shuffled_op_names = random.sample(op_name_keys, len(op_name_keys))
+    shuffled_op_names = random.sample(sorted(op_name_keys), len(op_name_keys))
     for idx, (_, node) in enumerate(mock_graph.nodes.items()):
         op_name = shuffled_op_names[idx]
         node[NNCFNode.NODE_NAME_ATTR] = get_node_name(shuffled_op_names[idx])
@@ -420,7 +413,7 @@ def get_sequentially_connected_model_graph(op_name_keys: List[str]) -> nx.DiGrap
 
         if node_key in OP_NAMES_IN_TEST_WITH_MODULE_ATTRIBUTES:
             attrs[NNCFNode.LAYER_ATTRIBUTES] = MagicMock()
-        actual_key = node_key + "_{}".format(node_key_appearances[node_key])
+        actual_key = node_key + f"_{node_key_appearances[node_key]}"
         graph.add_node(actual_key, **attrs)
         node_key_appearances[node_key] += 1
         actual_keys.append(actual_key)

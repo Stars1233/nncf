@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -113,37 +113,28 @@ class SmoothQuantAlgoBackend(ABC):
 
     @staticmethod
     @abstractmethod
-    def get_weight_value(node_with_weight: NNCFNode, model: TModel, port_id: int) -> Tensor:
+    def get_weight_value(node_with_weight: NNCFNode, model: TModel, port_id: int, nncf_graph: NNCFGraph) -> Tensor:
         """
         Returns the weight value for the node with weight.
 
         :param node_with_weight: The node with weight.
         :param model: The model that contains this operation.
         :param port_id: The input port ID to get weight input.
+        :param nncf_graph: NNCFGraph instance.
         :return: The weight value.
         """
 
     @staticmethod
     @abstractmethod
-    def get_weight_tensor_port_id(node: NNCFNode) -> int:
-        """
-        Returns node's input port indices with weights tensors.
-
-        :param node: NNCFNode to find its weights input port indices.
-        :return: Weights input port indices.
-        """
-
-    @staticmethod
-    @abstractmethod
     def weight_update_command(
-        node_with_weight: NNCFNode, weight_value: TTensor, weight_port_id: int
+        node_with_weight: NNCFNode, nncf_graph: NNCFGraph, weight_value: TTensor
     ) -> TransformationCommand:
         """
         Returns command to update weights.
 
         :param node_with_weight: NNCFNode instance.
+        :param nncf_graph: NNCFGraph instance.
         :param weight_value: New weight value.
-        :param weight_port_id: Weight port id.
         :return: TransformationCommand instance.
         """
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -72,7 +72,8 @@ class OVSmoothQuantAlgoBackend(SmoothQuantAlgoBackend):
         ]
 
         if len(activation_ports) != 1:
-            raise nncf.InternalError(f"Too many weight or activation ports for {node.node_name} node")
+            msg = f"Too many weight or activation ports for {node.node_name} node"
+            raise nncf.InternalError(msg)
         return activation_ports[0]
 
     @staticmethod
@@ -86,7 +87,7 @@ class OVSmoothQuantAlgoBackend(SmoothQuantAlgoBackend):
         return collector
 
     @staticmethod
-    def get_weight_value(node_with_weight: NNCFNode, model: ov.Model) -> Tensor:
+    def get_weight_value(node_with_weight: NNCFNode, model: ov.Model, nncf_graph: NNCFGraph) -> Tensor:
         port_id = OVSmoothQuantAlgoBackend.get_weight_tensor_port_id(node_with_weight)
         return Tensor(get_weight_value(node_with_weight, model, port_id))
 
@@ -94,11 +95,14 @@ class OVSmoothQuantAlgoBackend(SmoothQuantAlgoBackend):
     def get_weight_tensor_port_id(node: NNCFNode) -> int:
         const_ids = node.layer_attributes.get_const_port_ids()
         if len(const_ids) != 1:
-            raise nncf.InternalError(f"Found more than 1 port for {node.node_name} node")
+            msg = f"Found more than 1 port for {node.node_name} node"
+            raise nncf.InternalError(msg)
         return const_ids[0]
 
     @staticmethod
-    def weight_update_command(node_with_weight: NNCFNode, weight_value: np.ndarray) -> OVWeightUpdateCommand:
+    def weight_update_command(
+        node_with_weight: NNCFNode, nncf_graph: NNCFGraph, weight_value: np.ndarray
+    ) -> OVWeightUpdateCommand:
         weight_port_id = OVSmoothQuantAlgoBackend.get_weight_tensor_port_id(node_with_weight)
         return OVCommandCreator.create_command_to_update_weight(node_with_weight, weight_value, weight_port_id)
 
@@ -119,7 +123,8 @@ class OVSmoothQuantAlgoBackend(SmoothQuantAlgoBackend):
         channel_axis = 1
 
         if port_id > 1:
-            raise nncf.InternalError(f"{node.metatype.name} can not take more than 2 input tensors.")
+            msg = f"{node.metatype.name} can not take more than 2 input tensors."
+            raise nncf.InternalError(msg)
 
         if (
             node.metatype == OVMatMulMetatype

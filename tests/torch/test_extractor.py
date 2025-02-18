@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,7 +13,7 @@ import pytest
 import torch
 from torch import nn
 
-import tests.post_training.test_templates.helpers as helpers
+import tests.cross_fw.test_templates.helpers as helpers
 from nncf.common.graph.transformations.commands import TargetType
 from nncf.torch import wrap_model
 from nncf.torch.extractor import extract_model
@@ -61,10 +61,10 @@ def test_extract_model(model_cls, input_node_name, output_node_name):
 
     model = wrap_model(model_cls().eval(), example_input=example_input, trace_parameters=True)
     extracted_module = extract_model(model, [input_node_name], [output_node_name])
-    with torch.no_grad():
-        ret1 = model(example_input)
-        ret2 = extracted_module(example_input)
-        assert torch.any(torch.isclose(ret1, ret2))
+    ret1 = model(example_input)
+    ret2 = extracted_module(example_input)
+    assert not ret2.grad_fn
+    assert torch.any(torch.isclose(ret1, ret2))
 
 
 @pytest.mark.parametrize(
@@ -122,10 +122,11 @@ def test_extract_model_for_node_with_fq(model_cls, input_node_name, output_node_
     q_model = transformer.transform(layout)
 
     extracted_module = extract_model(model, [input_node_name], [output_node_name])
-    with torch.no_grad():
-        ret1 = q_model(example_input)
-        ret2 = extracted_module(example_input)
-        assert torch.all(torch.isclose(ret1, ret2))
+
+    ret1 = q_model(example_input)
+    ret2 = extracted_module(example_input)
+    assert torch.all(torch.isclose(ret1, ret2))
+    assert not ret2.grad_fn
 
     extracted_fn = extracted_module
     if isinstance(extracted_fn, nn.Sequential):

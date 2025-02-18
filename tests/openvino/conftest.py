@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,10 +13,10 @@ from pathlib import Path
 
 import pytest
 
-from tests.shared.case_collection import COMMON_SCOPE_MARKS_VS_OPTIONS
-from tests.shared.case_collection import skip_marked_cases_if_options_not_specified
-from tests.shared.install_fixtures import tmp_venv_with_nncf  # noqa: F401
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.case_collection import COMMON_SCOPE_MARKS_VS_OPTIONS
+from tests.cross_fw.shared.case_collection import skip_marked_cases_if_options_not_specified
+from tests.cross_fw.shared.install_fixtures import tmp_venv_with_nncf  # noqa: F401
+from tests.cross_fw.shared.paths import TEST_ROOT
 
 
 def pytest_addoption(parser):
@@ -37,6 +37,19 @@ def models(request):
     if option is None:
         return Path(MODELS_PATH)
     return Path(option)
+
+
+@pytest.fixture(name="zero_seed")
+def _seed():
+    """
+    Fixture to ensure deterministic randomness across tests.
+    """
+    import random
+
+    import numpy as np
+
+    np.random.seed(0)
+    random.seed(0)
 
 
 # Custom markers specifying tests to be run only if a specific option

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -53,7 +53,6 @@ def maybe_wrap_to_torch_return_type(
     :param wrapped_tensor: Instance of the tensor before it was unwrapped.
     :return: Wrapped tensor in case wrapped_input is wrapped by a torch.return_value container else the tensor.
     """
-
     if isinstance(wrapped_input, _TORCH_RETURN_TYPES):
         # We assume that return_type has only two attributes, the first one is `value`.
         # This assumption is checked by `test_unwrap_wrap_torch_return_type`.

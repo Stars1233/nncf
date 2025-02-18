@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -44,7 +44,8 @@ class StatisticsCallback(tf.keras.callbacks.Callback):
         self._file_writer = None
         if log_tensorboard:
             if log_dir is None:
-                raise ValueError("log_dir must be specified if log_tensorboard is true.")
+                msg = "log_dir must be specified if log_tensorboard is true."
+                raise ValueError(msg)
 
             self._file_writer = tf.summary.create_file_writer(log_dir + "/compression")
 
@@ -76,6 +77,5 @@ class StatisticsCallback(tf.keras.callbacks.Callback):
             self._file_writer.close()
 
     def _prepare_for_tensorboard(self, stats: NNCFStatistics):
-        raise NotImplementedError(
-            "StatisticsCallback class implementation must override the _prepare_for_tensorboard method."
-        )
+        msg = "StatisticsCallback class implementation must override the _prepare_for_tensorboard method."
+        raise NotImplementedError(msg)

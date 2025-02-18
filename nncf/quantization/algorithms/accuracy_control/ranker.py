@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,7 +30,7 @@ from nncf.quantization.algorithms.accuracy_control.backend import AccuracyContro
 from nncf.quantization.algorithms.accuracy_control.evaluator import Evaluator
 from nncf.quantization.algorithms.accuracy_control.rank_functions import create_normalized_mse_func
 from nncf.quantization.algorithms.accuracy_control.subset_selection import select_subset
-from nncf.quantization.passes import remove_shapeof_subgraphs
+from nncf.quantization.passes import find_shapeof_subgraphs
 
 TModel = TypeVar("TModel")
 TPModel = TypeVar("TPModel")
@@ -109,11 +109,13 @@ class Ranker:
             *self._algo_backend.get_start_nodes_for_activation_path_tracing(quantized_model_graph),
         ]
 
-        quantized_model_graph_without_shapeof = remove_shapeof_subgraphs(
-            deepcopy(quantized_model_graph),
+        shapeof_subgraphs = find_shapeof_subgraphs(
+            quantized_model_graph,
             self._algo_backend.get_shapeof_metatypes(),
             input_nodes,
         )
+        quantized_model_graph_without_shapeof = deepcopy(quantized_model_graph)
+        quantized_model_graph_without_shapeof.remove_nodes_from(shapeof_subgraphs)
 
         for quantizer_node in reversed(quantizers):
             if processed.get(quantizer_node.node_name, False):

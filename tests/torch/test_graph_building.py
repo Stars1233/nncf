@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -186,8 +186,8 @@ def test_activation_shape_tracing(input_shape: Tuple[int, ...]):
         ).output_edges
         input_tensor_shapes = [x.tensor_shape for x in input_edges]
         output_tensor_shapes = [x.tensor_shape for x in output_edges]
-        assert input_tensor_shapes == ref_input_shapes, "Failed for node ID: {}".format(node_id)
-        assert output_tensor_shapes == ref_output_shapes, "Failed for node ID: {}".format(node_id)
+        assert input_tensor_shapes == ref_input_shapes, f"Failed for node ID: {node_id}"
+        assert output_tensor_shapes == ref_output_shapes, f"Failed for node ID: {node_id}"
 
 
 class ParallelEdgesModel(nn.Module):

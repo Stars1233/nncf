@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -110,7 +110,7 @@ def collect_wrapped_layers(model):
 
 
 def get_shared_node_name(layer_name: str, instance_idx: int):
-    return "{}{}{}".format(layer_name, SHARED_OPERATION_MARK, instance_idx)
+    return f"{layer_name}{SHARED_OPERATION_MARK}{instance_idx}"
 
 
 def get_original_name_and_instance_idx(node_name: NNCFNodeName):
@@ -129,7 +129,8 @@ def get_layer_to_graph_nodes_map(model, node_names):
     for node in node_names:
         parent_layer_name = node.split("/")[1]  # model_name/layer_name/layer_op_name/...
         if parent_layer_name not in layer_to_nodes_map:
-            raise nncf.ValidationError("Could not find {} layer in Model".format(parent_layer_name))
+            msg = f"Could not find {parent_layer_name} layer in Model"
+            raise nncf.ValidationError(msg)
         layer_to_nodes_map[parent_layer_name]["nodes"].append(node)
     return layer_to_nodes_map
 

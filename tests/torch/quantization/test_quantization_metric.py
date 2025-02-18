@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -219,7 +219,7 @@ QUANTIZATION_CONFIGURATION_STATS_TEST_CASES = [
         weights={},
         ignored_scopes=[],
         target_device="TRIAL",
-        expected={"quantized_edges_in_cfg": 176, "total_edges_in_cfg": 177},
+        expected={"quantized_edges_in_cfg": 173, "total_edges_in_cfg": 177},
     ),
     CaseStruct(
         initializers={},

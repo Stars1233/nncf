@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -66,9 +66,8 @@ class LayerwiseEngine:
 
             self._backend_entity = OVLayerwiseEngineBackend()
         else:
-            raise UnsupportedBackendError(
-                "Cannot return backend-specific entity because {} is not supported!".format(model_backend.value)
-            )
+            msg = f"Cannot return backend-specific entity because {model_backend.value} is not supported!"
+            raise UnsupportedBackendError(msg)
 
     def _get_statistics(self, statistic_points: StatisticPointsContainer, node_name: str, port_id: int) -> List[Tensor]:
         """
@@ -112,7 +111,8 @@ class LayerwiseEngine:
         for out in outputs:
             x = self._get_statistics(statistic_points, out.node_name, out.output_port)
             if not x:
-                raise RuntimeError(f"Statistics for {out.node_name} node on {out.output_port} port is not provided.")
+                msg = f"Statistics for {out.node_name} node on {out.output_port} port is not provided."
+                raise RuntimeError(msg)
             cache[out] = x
         return cache
 

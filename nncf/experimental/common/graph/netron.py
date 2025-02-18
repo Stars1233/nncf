@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -159,7 +159,6 @@ def convert_nncf_dtype_to_ov_dtype(dtype: Dtype) -> str:
     :param dtype: The data type to be converted.
     :return: The openvino dtype string corresponding to the given data type.
     """
-
     dummy_precision_map: Dict[Dtype, str] = {Dtype.INTEGER: "i32", Dtype.FLOAT: "f32"}
 
     return dummy_precision_map[dtype]
@@ -178,7 +177,6 @@ def get_graph_desc(
     :return: A tuple containing lists of NodeDesc and EdgeDesc objects
         representing the nodes and edges of the NNCFGraph.
     """
-
     if get_attributes_fn is None:
         get_attributes_fn = lambda x: {
             "metatype": str(x.metatype.name),
@@ -257,7 +255,6 @@ def save_for_netron(
     :param get_attributes_fn: A function to retrieve additional attributes for nodes.
         Defaults to a function returning {"metatype": str(x.metatype.name)}.
     """
-
     node_descs, edge_descs = get_graph_desc(graph, include_fq_params, get_attributes_fn)
 
     net = ET.Element(Tags.NET, name=graph_name)

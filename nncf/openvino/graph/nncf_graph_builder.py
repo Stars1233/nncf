@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,6 +48,7 @@ class GraphConverter:
             "bf16": "float",
             "f32": "float",
             "f64": "float",
+            "nf4": "float",
             "i4": "int",
             "i8": "int",
             "i16": "int",
@@ -63,7 +64,8 @@ class GraphConverter:
             "string": "int",
         }
         if type_name not in conversion_map:
-            raise NotImplementedError(f"NNCF is not yet supported OpenVINO data type: {type_name}.")
+            msg = f"NNCF is not yet supported OpenVINO data type: {type_name}."
+            raise NotImplementedError(msg)
         return Dtype(conversion_map[type_name])
 
     @staticmethod
@@ -199,6 +201,7 @@ class GraphConverter:
                     const_attrs[const_port_id] = {
                         "name": const_node.get_friendly_name(),
                         "shape": tuple(const_node.get_output_shape(0)),
+                        "dtype": const_node.output(0).get_element_type().get_type_name(),
                     }
 
                     if metatype == OVMatMulMetatype:

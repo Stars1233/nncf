@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -91,7 +91,7 @@ def multilevel_propose_rois(
         roi_scores = []
         image_shape = tf.expand_dims(image_shape, axis=1)
         for level in sorted(rpn_scores.keys()):
-            with tf.name_scope("level_{}".format(level)):
+            with tf.name_scope(f"level_{level}"):
                 _, feature_h, feature_w, num_anchors_per_location = rpn_scores[level].get_shape().as_list()
 
                 num_boxes = feature_h * feature_w * num_anchors_per_location

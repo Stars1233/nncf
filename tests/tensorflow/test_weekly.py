@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,7 @@ import tempfile
 import pytest
 from pytest import approx
 
-from tests.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import PROJECT_ROOT
 from tests.tensorflow.test_sanity_sample import get_sample_fn
 
 EXAMPLES_DIR = PROJECT_ROOT.joinpath("examples", "tensorflow")
@@ -244,7 +244,8 @@ def _params(request, tmp_path_factory, dataset_dir, models_dir, weekly_tests):
         if models_dir:
             args["weights"] = os.path.join(models_dir, args["weights"])
         if not os.path.exists(args["weights"]):
-            raise FileExistsError("Weights file does not exist: {}".format(args["weights"]))
+            msg = "Weights file does not exist: {}".format(args["weights"])
+            raise FileExistsError(msg)
     else:
         del args["weights"]
     if execution_arg:
@@ -276,7 +277,7 @@ def run_sample(tc, args):
         actual_acc = get_actual_acc(args["metrics-dump"])
         ref_acc = tc["expected_accuracy"]
         assert actual_acc == approx(
-            ref_acc, abs=tc["absolute_tolerance_{}".format(mode)]
+            ref_acc, abs=tc[f"absolute_tolerance_{mode}"]
         ), "Test accuracy doesn't meet the expected accuracy within threshold."
 
 

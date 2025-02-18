@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -16,7 +16,7 @@ from nncf.common.utils.api_marker import api
 
 class StrEnum(str, Enum):
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 @api(canonical_alias="nncf.TargetDevice")
@@ -94,6 +94,23 @@ class CompressWeightsMode(StrEnum):
     NF4 = "nf4"
     INT8 = "int8"  # Deprecated mode
     E2M1 = "e2m1"
+
+
+@api(canonical_alias="nncf.BackupMode")
+class BackupMode(StrEnum):
+    """
+    Defines a backup mode for weight compression.
+    :param NONE: Stands for original floating-point precision of the model weights.
+        In this mode, weights are retained in their original precision without any quantization.
+    :param INT8_SYM: Stands for 8-bit integer symmetric quantization without zero point.
+        https://github.com/openvinotoolkit/nncf/blob/develop/docs/usage/training_time_compression/other_algorithms/LegacyQuantization.md#symmetric-quantization
+    :param INT8_ASYM: Stands for 8-bit integer asymmetric quantization with a typical non-fixed zero point.
+        https://github.com/openvinotoolkit/nncf/blob/develop/docs/compression_algorithms/Quantization.md#asymmetric-quantization
+    """
+
+    NONE = "none"
+    INT8_SYM = "int8_sym"
+    INT8_ASYM = "int8_asym"
 
 
 @api(canonical_alias="nncf.SensitivityMetric")

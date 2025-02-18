@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,7 +21,6 @@ from nncf.api.compression import CompressionAlgorithmController
 from nncf.api.compression import CompressionStage
 from nncf.common.logging import nncf_logger
 from nncf.common.plotting import noninteractive_plotting
-from nncf.common.statistics import NNCFStatistics
 from nncf.common.utils.helpers import configure_accuracy_aware_paths
 from nncf.common.utils.tensorboard import prepare_for_tensorboard
 from nncf.config.schemata.defaults import AA_COMPRESSION_RATE_STEP_REDUCTION_FACTOR
@@ -42,7 +41,7 @@ Checkpoint = TypeVar("Checkpoint")
 Image = Any  # Default type for Image.
 
 try:
-    import matplotlib.pyplot as plt  # type: ignore
+    import matplotlib.pyplot as plt
     import PIL.Image
     from PIL.Image import Image
 
@@ -266,7 +265,7 @@ class BaseAccuracyAwareTrainingRunner(TrainingRunner):
                 [
                     TModel,
                     CompressionAlgorithmController,
-                    "TrainingRunner",
+                    TrainingRunner,
                     Optional[Union[str, pathlib.Path]],
                 ],
                 None,
@@ -294,7 +293,7 @@ class BaseAccuracyAwareTrainingRunner(TrainingRunner):
         self.cumulative_epoch_count += 1
 
     def dump_statistics(self, model: TModel, compression_controller: CompressionAlgorithmController) -> None:
-        statistics = cast(NNCFStatistics, compression_controller.statistics())
+        statistics = compression_controller.statistics()
 
         if self.verbose:
             nncf_logger.info(statistics.to_str())
@@ -308,7 +307,7 @@ class BaseAccuracyAwareTrainingRunner(TrainingRunner):
         for key, value in prepare_for_tensorboard(statistics).items():
             if isinstance(value, (int, float)):
                 self.add_tensorboard_scalar(
-                    "compression/statistics/{0}".format(key),
+                    f"compression/statistics/{key}",
                     value,
                     self.cumulative_epoch_count,
                 )

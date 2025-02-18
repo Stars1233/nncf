@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -221,6 +221,7 @@ class PTModelTransformer(ModelTransformer):
             update_fused_bias(
                 target_node_name=transformation.target_point.target_node_name,
                 new_bias=transformation.bias_value,
+                nncf_graph=model.nncf.get_graph(),
                 model=model,
             )
         return model

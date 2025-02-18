@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -72,7 +72,6 @@ def create_ptq_pipeline(
         fine-tuning the quantization algorithm
     :return: A post-training quantization pipeline.
     """
-
     if advanced_parameters is None:
         advanced_parameters = AdvancedQuantizationParameters()
 
@@ -121,6 +120,7 @@ def create_ptq_pipeline(
                 weights_quantization_params=advanced_parameters.weights_quantization_params,
                 activations_range_estimator_params=advanced_parameters.activations_range_estimator_params,
                 weights_range_estimator_params=advanced_parameters.weights_range_estimator_params,
+                quantizer_propagation_rule=advanced_parameters.quantizer_propagation_rule,
                 backend_params=advanced_parameters.backend_params,
             )
         ]

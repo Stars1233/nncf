@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -99,9 +99,11 @@ class OVChannelAlignmentAlgoBackend(ChannelAlignmentAlgoBackend):
         elif node.metatype == OVMatMulMetatype:
             weights_layout = get_linear_weights_layout_from_node(node=node)
         else:
-            raise nncf.InternalError(
-                f"Metatype {node.metatype} of node {node.node_name} dimensions description retrieving is not supported"
+            msg = (
+                f"Metatype {node.metatype} of node {node.node_name} dimensions"
+                " description retrieving is not supported"
             )
+            raise nncf.InternalError(msg)
 
         if OVLayoutElem.GROUPS in weights_layout:
             # Using groups dim as output channels dim for ChannelAlignment algorithm

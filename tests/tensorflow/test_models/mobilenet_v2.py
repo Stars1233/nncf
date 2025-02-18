@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -96,7 +96,7 @@ def MobileNetV2(input_shape=None, alpha=1.0):
     x = layers.Dense(NUM_CLASSES, activation="softmax", name="predictions")(x)
 
     # Create model.
-    model = tf.keras.Model(img_input, x, name="mobilenetv2_%0.2f_%s" % (alpha, rows))
+    model = tf.keras.Model(img_input, x, name=f"mobilenetv2_{alpha:0.2f}_{rows}")
 
     return model
 
@@ -109,7 +109,7 @@ def _inverted_res_block(inputs, expansion, stride, alpha, filters, block_id):
     pointwise_conv_filters = int(filters * alpha)
     pointwise_filters = _make_divisible(pointwise_conv_filters, 8)
     x = inputs
-    prefix = "block_{}_".format(block_id)
+    prefix = f"block_{block_id}_"
 
     if block_id:
         # Expand

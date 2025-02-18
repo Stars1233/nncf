@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -214,7 +214,8 @@ class COCOEvaluator:
 
         for k in self._required_prediction_fields:
             if k not in predictions:
-                raise ValueError("Missing the required key `{}` in predictions!".format(k))
+                msg = f"Missing the required key `{k}` in predictions!"
+                raise ValueError(msg)
 
         if self._need_rescale_bboxes:
             self._process_predictions(predictions)
@@ -235,7 +236,8 @@ class COCOEvaluator:
 
             for k in self._required_groundtruth_fields:
                 if k not in groundtruths:
-                    raise ValueError("Missing the required key `{}` in groundtruths!".format(k))
+                    msg = f"Missing the required key `{k}` in groundtruths!"
+                    raise ValueError(msg)
 
             for k, v in groundtruths.items():
                 if k not in self._groundtruths:

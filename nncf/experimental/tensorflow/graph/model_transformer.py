@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,6 +48,7 @@ class TFModelTransformerV2(ModelTransformer):
                 # TODO(andrey-churkin): Add support
                 pass
             else:
-                raise ValueError(f"Transformation type {command.type} does not support.")
+                msg = f"Transformation type {command.type} does not support."
+                raise ValueError(msg)
 
         return self._model

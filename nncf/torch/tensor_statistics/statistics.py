@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -28,11 +28,13 @@ def pt_convert_stat_to_min_max_tensor_stat(statistic: TensorStatistic) -> MinMax
         )
     if isinstance(statistic, PercentileTensorStatistic):
         if len(statistic.percentile_vs_values_dict.keys()) < 2:
-            raise ValueError("Cannot create a min-max statistic for less than 2 percentile values")
+            msg = "Cannot create a min-max statistic for less than 2 percentile values"
+            raise ValueError(msg)
         min_pct = min(statistic.percentile_vs_values_dict.keys())
         max_pct = max(statistic.percentile_vs_values_dict.keys())
         return MinMaxTensorStatistic(
             min_values=statistic.percentile_vs_values_dict[min_pct],
             max_values=statistic.percentile_vs_values_dict[max_pct],
         )
-    raise ValueError("Unknown TensorStatistic to generate min-max stat from!")
+    msg = "Unknown TensorStatistic to generate min-max stat from!"
+    raise ValueError(msg)

@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,6 +11,7 @@
 """
 Structures and functions for passing advanced parameters to NNCF post-training quantization APIs.
 """
+
 import sys
 from dataclasses import dataclass
 from dataclasses import field
@@ -20,6 +21,7 @@ from enum import Enum
 from typing import Any, Dict, Optional, Union
 
 import nncf
+from nncf.common.quantization.quantizer_propagation.structs import QuantizerPropagationRule
 from nncf.common.quantization.structs import QuantizationScheme as QuantizationMode
 from nncf.common.utils.api_marker import api
 from nncf.parameters import StrEnum
@@ -180,7 +182,7 @@ class AdvancedQuantizationParameters:
 
     :param overflow_fix: This option controls whether to apply the overflow issue fix
         for the 8-bit quantization.
-    :type overflow_fix: nncf.quantization.advanced_parameters.OverflowFix
+    :type overflow_fix: Optional[nncf.quantization.advanced_parameters.OverflowFix]
     :param quantize_outputs: Whether to insert additional quantizers right before each
         of the model outputs.
     :type quantize_outputs: bool
@@ -197,6 +199,17 @@ class AdvancedQuantizationParameters:
         the calibration dataset, then in case batch_size of the data source > 1 batchwise_statistics sets to True,
         otherwise sets to False.
     :type batchwise_statistics: Optional[bool]
+    :param quantizer_propagation_rule: An instance of the `QuantizerPropagationRule` enum that
+        specifies how quantizers should be propagated and merged across branching nodes in the
+        model's computational graph. The strategies are as follows:
+        - DO_NOT_MERGE_BRANCHES: No merging of quantization parameters across branches.
+        - MERGE_IF_ALL_BRANCHES_SAME : Merge only if all branch quantization configurations are identical.
+        - MERGE_WITH_POTENTIAL_REQUANTIZATION: Merge common configurations and allow for requantization
+        on branches with additional options.
+        - MERGE_ALL_IN_ONE: Attempt to merge into a single global quantization configuration
+        if possible given hardware constraints.
+        MERGE_ALL_IN_ONE is a default value.
+    :type quantizer_propagation_rule: QuantizerPropagationRule
     :param activations_quantization_params: Quantization parameters for activations.
     :type activations_quantization_params: nncf.quantization.advanced_parameters.QuantizationParameters
     :param weights_quantization_params: Quantization parameters for weights.
@@ -211,7 +224,7 @@ class AdvancedQuantizationParameters:
         It regulates the calculation of the smooth scale. The default value stored in AdvancedSmoothQuantParameters.
         A negative value for each field switches off type smoothing. In case of inaccurate results,
         fields may be adjusted in the range from 0 to 1 or set -1 to disable smoothing for type.
-    :type smooth_quant_alpha: AdvancedSmoothQuantParameters
+    :type smooth_quant_alphas: nncf.quantization.advanced_parameters.AdvancedSmoothQuantParameters
     :param smooth_quant_alpha: Deprecated SmoothQuant-related parameter.
     :type smooth_quant_alpha: float
     :param backend_params: Backend-specific parameters.
@@ -219,7 +232,7 @@ class AdvancedQuantizationParameters:
     """
 
     # General parameters
-    overflow_fix: OverflowFix = None
+    overflow_fix: Optional[OverflowFix] = None
     quantize_outputs: bool = False
     inplace_statistics: bool = True
     disable_channel_alignment: bool = True
@@ -227,8 +240,9 @@ class AdvancedQuantizationParameters:
     batchwise_statistics: Optional[bool] = None
 
     # Advanced Quantization parameters
-    activations_quantization_params: Union[QuantizationParameters, FP8QuantizationParameters] = None
-    weights_quantization_params: Union[QuantizationParameters, FP8QuantizationParameters] = None
+    activations_quantization_params: Optional[Union[QuantizationParameters, FP8QuantizationParameters]] = None
+    weights_quantization_params: Optional[Union[QuantizationParameters, FP8QuantizationParameters]] = None
+    quantizer_propagation_rule: QuantizerPropagationRule = QuantizerPropagationRule.MERGE_ALL_IN_ONE
 
     # Range estimator parameters
     activations_range_estimator_params: RangeEstimatorParameters = field(default_factory=RangeEstimatorParameters)
@@ -240,7 +254,7 @@ class AdvancedQuantizationParameters:
     # Advanced SmoothQuant algorithm parameters
     smooth_quant_alphas: AdvancedSmoothQuantParameters = field(default_factory=AdvancedSmoothQuantParameters)
     # Deprecated parameter
-    smooth_quant_alpha: float = None
+    smooth_quant_alpha: Optional[float] = None
 
     # Backend specific parameters
     backend_params: Dict[str, Any] = field(default_factory=dict)
@@ -288,9 +302,9 @@ class AdvancedScaleEstimationParameters:
     :type weight_penalty: float
     """
 
-    subset_size: int = 32
+    subset_size: int = 64
     initial_steps: int = 5
-    scale_steps: int = 10
+    scale_steps: int = 5
     weight_penalty: float = -1.0
 
 
@@ -316,16 +330,46 @@ class AdvancedGPTQParameters:
 
 @api()
 @dataclass
+class AdvancedLoraCorrectionParameters:
+    """
+    Contains advanced parameters for lora correction algorithm.
+
+    :param adapter_rank: rank of lora adapters. Defaults to 16.
+    :type adapter_rank: int
+    :param num_iterations: number of correction iterations. Defaults to 3.
+    :type num_iterations: int
+    :param apply_regularization: Whether to add a regularization during the correction process. Defaults to True.
+        Helpful for big rank values to avoid overfitting.
+    :type apply_regularization: bool
+    :param subset_size: Number of data samples for lora correction algorithm. Defaults to 128.
+    :type subset_size: int
+    :param use_int8_adapters: Whether to 8-bit quantize lora adapters, otherwise they kept in the original weights
+        precision. Defaults to True.
+    :type use_int8_adapters: bool
+    """
+
+    adapter_rank: int = 8
+    num_iterations: int = 3
+    apply_regularization: bool = True
+    subset_size: int = 128
+    use_int8_adapters: bool = True
+
+
+@api()
+@dataclass
 class AdvancedCompressionParameters:
     """
     Contains advanced parameters for compression algorithms.
 
+    :param statistics_path: Directory path to dump statistics.
+    :type statistics_path: str
     :param awq_params: Advanced parameters for AWQ algorithm.
     :type awq_params: AdvancedAWQParameters
     :param scale_estimation_params: Advanced parameters for scale estimation algorithm.
     :type scale_estimation_params: AdvancedScaleEstimationParameters
     """
 
+    statistics_path: Optional[str] = None
     # Advanced AWQ algorithm parameters
     awq_params: AdvancedAWQParameters = field(default_factory=AdvancedAWQParameters)
 
@@ -336,6 +380,9 @@ class AdvancedCompressionParameters:
 
     # Advanced GPTQ algorithm parameters
     gptq_params: AdvancedGPTQParameters = field(default_factory=AdvancedGPTQParameters)
+
+    # Advanced Lora Correction algorithm parameters
+    lora_correction_params: AdvancedLoraCorrectionParameters = field(default_factory=AdvancedLoraCorrectionParameters)
 
 
 @api()
@@ -413,14 +460,14 @@ def convert_to_dict_recursively(params: Any) -> Dict[str, Any]:
     return result
 
 
-def convert_quantization_parameters_to_dict(params: QuantizationParameters) -> Dict[str, Any]:
+def convert_quantization_parameters_to_dict(params: Optional[QuantizationParameters]) -> Dict[str, Any]:
     """
     Converts quantization parameters to the dict in the legacy format
 
     :param params: Quantization parameters
     :return: Quantization parameters as dict in the legacy format
     """
-    result = {}
+    result: Dict[str, Any] = {}
     if params is not None:
         if params.num_bits is not None:
             result["bits"] = params.num_bits
@@ -431,7 +478,8 @@ def convert_quantization_parameters_to_dict(params: QuantizationParameters) -> D
         if params.per_channel is not None:
             result["per_channel"] = params.per_channel
         if params.narrow_range is not None:
-            raise nncf.ParameterNotSupportedError("narrow_range parameter is not supported in the legacy format")
+            msg = "narrow_range parameter is not supported in the legacy format"
+            raise nncf.ParameterNotSupportedError(msg)
     return result
 
 
@@ -443,9 +491,10 @@ def convert_range_estimator_parameters_to_dict(params: RangeEstimatorParameters)
     :return: range estimator parameters as dict in the legacy format
     """
     if params.min.clipping_value is not None or params.max.clipping_value is not None:
-        raise nncf.ParameterNotSupportedError("clipping_value parameter is not supported in the legacy format")
+        msg = "clipping_value parameter is not supported in the legacy format"
+        raise nncf.ParameterNotSupportedError(msg)
 
-    result = {}
+    result: Dict[str, Any] = {}
     if (
         params.min.statistics_type == StatisticsType.MIN
         and params.min.aggregator_type == AggregatorType.MIN
@@ -479,9 +528,8 @@ def convert_range_estimator_parameters_to_dict(params: RangeEstimatorParameters)
     ):
         return {}
     else:
-        raise nncf.ParameterNotSupportedError(
-            f"The following range estimator parameters are not supported: {str(params)}"
-        )
+        msg = f"The following range estimator parameters are not supported: {str(params)}"
+        raise nncf.ParameterNotSupportedError(msg)
 
     return result
 
@@ -504,13 +552,15 @@ def apply_advanced_parameters_to_config(
         initializer["batchnorm_adaptation"] = {"num_bn_adaptation_samples": 0}
         config["initializer"] = initializer
 
-    activations_config = convert_quantization_parameters_to_dict(params.activations_quantization_params)
-    if activations_config:
-        config["activations"] = activations_config
+    if isinstance(params.activations_quantization_params, QuantizationParameters):
+        activations_config = convert_quantization_parameters_to_dict(params.activations_quantization_params)
+        if activations_config:
+            config["activations"] = activations_config
 
-    weights_config = convert_quantization_parameters_to_dict(params.weights_quantization_params)
-    if weights_config:
-        config["weights"] = weights_config
+    if isinstance(params.weights_quantization_params, QuantizationParameters):
+        weights_config = convert_quantization_parameters_to_dict(params.weights_quantization_params)
+        if weights_config:
+            config["weights"] = weights_config
 
     activations_init_range_config = convert_range_estimator_parameters_to_dict(
         params.activations_range_estimator_params
@@ -541,13 +591,11 @@ def apply_advanced_parameters_to_config(
         config["initializer"] = initializer
 
     if params.bias_correction_params.apply_for_all_nodes:
-        raise nncf.ParameterNotSupportedError(
-            "apply_for_all_nodes parameter of the BiasCorrection algorithm is not supported in the legacy format"
-        )
+        msg = "apply_for_all_nodes parameter of the BiasCorrection algorithm is not supported in the legacy format"
+        raise nncf.ParameterNotSupportedError(msg)
 
     if params.bias_correction_params.threshold is not None:
-        raise nncf.ParameterNotSupportedError(
-            "threshold parameter of the BiasCorrection algorithm is not supported in the legacy format"
-        )
+        msg = "threshold parameter of the BiasCorrection algorithm is not supported in the legacy format"
+        raise nncf.ParameterNotSupportedError(msg)
 
     return config

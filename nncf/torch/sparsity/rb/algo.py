@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -108,10 +108,11 @@ class RBSparsityController(BaseSparsityAlgoController):
 
     def distributed(self):
         if not dist.is_initialized():
-            raise KeyError(
+            msg = (
                 "Could not set distributed mode for the compression algorithm "
                 "because the default process group has not been initialized."
             )
+            raise KeyError(msg)
 
         if "cuda" in get_model_device(self._model).type:
             state = torch.cuda.get_rng_state()

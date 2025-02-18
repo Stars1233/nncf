@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,7 +11,21 @@
 import pathlib
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Dict, Generator, KeysView, List, Optional, Tuple, Type, ValuesView, cast
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Dict,
+    Generator,
+    KeysView,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    ValuesView,
+    cast,
+)
 
 import networkx as nx  # type:ignore
 import networkx.algorithms.isomorphism as iso  # type:ignore
@@ -245,7 +259,7 @@ class NNCFGraph:
                 all_nodes_of_type.append(nncf_node)
         return all_nodes_of_type
 
-    def get_nodes_by_metatypes(self, metatype_list: List[Type[OperatorMetatype]]) -> List[NNCFNode]:
+    def get_nodes_by_metatypes(self, metatype_list: Collection[Type[OperatorMetatype]]) -> List[NNCFNode]:
         """
         Return a list of nodes with provided metatypes.
 
@@ -278,7 +292,7 @@ class NNCFGraph:
 
     def get_all_simple_paths(
         self, start_node_name: NNCFNodeName, end_node_name: NNCFNodeName
-    ) -> Generator[List[NNCFNodeName], None, None]:
+    ) -> Generator[List[str], None, None]:
         """
         Generates all simple paths in the NNCFGraph from start node to end node.
         A simple path is a path with no repeated nodes.
@@ -292,9 +306,7 @@ class NNCFGraph:
         end_node = self.get_node_by_name(end_node_name)
         start_node_key = self.get_node_key_by_id(start_node.node_id)
         end_node_key = self.get_node_key_by_id(end_node.node_id)
-        return cast(
-            Generator[List[NNCFNodeName], None, None], nx.all_simple_paths(self._nx_graph, start_node_key, end_node_key)
-        )
+        return cast(Generator[List[str], None, None], nx.all_simple_paths(self._nx_graph, start_node_key, end_node_key))
 
     @staticmethod
     def _get_edge_boundaries(
@@ -331,7 +343,6 @@ class NNCFGraph:
         :param node: Consumer node.
         :return: List of producers nodes of provided node.
         """
-
         nx_node_keys = self._nx_graph.pred[self._node_id_to_key_dict[node.node_id]]
         return [self._nodes[key] for key in nx_node_keys]
 
@@ -359,14 +370,12 @@ class NNCFGraph:
         """
         edges = [e for e in self.get_input_edges(node) if e.input_port_id == port_id]
         if len(edges) == 0:
-            raise nncf.ValidationError(
-                f"Node {node.node_name} does not contain input edge connected to {port_id} port ID."
-            )
+            msg = f"Node {node.node_name} does not contain input edge connected to {port_id} port ID."
+            raise nncf.ValidationError(msg)
 
         if len(edges) > 1:
-            raise nncf.InternalError(
-                "Unsupported graph. More than one edge was found for a given node by the specified input port ID."
-            )
+            msg = "Unsupported graph. More than one edge was found for a given node by the specified input port ID."
+            raise nncf.InternalError(msg)
         return edges[0]
 
     def get_output_edges(self, node: NNCFNode) -> List[NNCFGraphEdge]:
@@ -495,7 +504,8 @@ class NNCFGraph:
                 node_id = 0
 
         if node_id in self._node_id_to_key_dict:
-            raise ValueError(f"NNCF node with id {node_id} is already in the NNCFGraph")
+            msg = f"NNCF node with id {node_id} is already in the NNCFGraph"
+            raise ValueError(msg)
 
         node_ids = self._node_name_to_node_id_map.setdefault(node_name, [])
         node_ids.append(node_id)
@@ -541,7 +551,7 @@ class NNCFGraph:
         self,
         from_node_id: int,
         to_node_id: int,
-        tensor_shape: List[int],
+        tensor_shape: Union[Tuple[int, ...], List[int]],
         input_port_id: int,
         output_port_id: int,
         dtype: Dtype,
@@ -575,7 +585,8 @@ class NNCFGraph:
             err_reason = "cannot add edges *to* input nodes"
 
         if err_reason is not None:
-            raise ValueError(f"Cannot add edge from {from_node_key} to {to_node_key} - {err_reason}!")
+            msg = f"Cannot add edge from {from_node_key} to {to_node_key} - {err_reason}!"
+            raise ValueError(msg)
 
         attrs = {
             NNCFGraph.ACTIVATION_SHAPE_EDGE_ATTR: tensor_shape,
@@ -640,7 +651,7 @@ class NNCFGraph:
                 if "shape" in label and len(label) == 1:
                     attrs_edge["label"] = label["shape"]
                 else:
-                    attrs_edge["label"] = ", ".join((f"{k}:{v}" for k, v in label.items()))
+                    attrs_edge["label"] = ", ".join((f"{k} {v}" for k, v in label.items()))
             out_graph.add_edge(u, v, **attrs_edge)
         return out_graph
 
@@ -678,9 +689,11 @@ class NNCFGraph:
     def get_node_by_name(self, name: NNCFNodeName) -> NNCFNode:
         node_ids = self._node_name_to_node_id_map.get(name, None)
         if node_ids is None:
-            raise nncf.InternalError("Could not find a node {} in NNCFGraph!".format(name))
+            msg = f"Could not find a node {name} in NNCFGraph!"
+            raise nncf.InternalError(msg)
         if len(node_ids) > 1:
-            raise nncf.InternalError(f"More than one node in NNCFGraph matches name {name}")
+            msg = f"More than one node in NNCFGraph matches name {name}"
+            raise nncf.InternalError(msg)
 
         node_key = f"{node_ids[0]} {name}"
         return self._nodes[node_key]
@@ -709,7 +722,6 @@ class NNCFGraph:
         `match` list
         :return: NNCFGraphPatternIO object describing the inputs and outputs of the matched subgraph
         """
-
         in_edge_boundary, out_edge_boundary = NNCFGraph._get_edge_boundaries(match, self._nx_graph)
         boundary = in_edge_boundary + out_edge_boundary
         input_nncf_edges = []
@@ -733,7 +745,8 @@ class NNCFGraph:
             elif to_node_key in match:
                 input_nncf_edges.append(nncf_edge)
             else:
-                raise nncf.InternalError("Invalid graph expression supplied!")
+                msg = "Invalid graph expression supplied!"
+                raise nncf.InternalError(msg)
 
         return NNCFGraphPatternIO(input_nncf_edges, output_nncf_edges)
 
@@ -768,7 +781,7 @@ class NNCFGraph:
         for nx_edge in self._nx_graph.in_edges:
             yield self.get_edge(self.get_node_by_key(nx_edge[0]), self.get_node_by_key(nx_edge[1]))
 
-    def remove_nodes_from(self, nodes: List[NNCFNode]) -> None:
+    def remove_nodes_from(self, nodes: Collection[NNCFNode]) -> None:
         """
         Removes nodes from the current NNCFGraph instance.
         We use the remove_node method here because remove_nodes_from uses a silent fail instead of an exception.

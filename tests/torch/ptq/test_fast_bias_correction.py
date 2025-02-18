@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,7 +19,7 @@ from nncf.quantization.algorithms.fast_bias_correction.torch_backend import PTFa
 from nncf.torch.model_graph_manager import get_fused_bias_value
 from nncf.torch.model_graph_manager import is_node_with_fused_bias
 from nncf.torch.nncf_network import NNCFNetwork
-from tests.post_training.test_templates.test_fast_bias_correction import TemplateTestFBCAlgorithm
+from tests.cross_fw.test_templates.test_fast_bias_correction import TemplateTestFBCAlgorithm
 from tests.torch.ptq.helpers import get_nncf_network
 
 
@@ -55,11 +55,12 @@ class TestTorchFBCAlgorithm(TemplateTestFBCAlgorithm):
         for node in nncf_graph.get_all_nodes():
             if not is_node_with_fused_bias(node, nncf_graph):
                 continue
-            bias_value = get_fused_bias_value(node, model)
+            bias_value = get_fused_bias_value(node, nncf_graph, model).cpu()
             # TODO(AlexanderDokuchaev): return atol=0.0001 after fix 109189
             assert torch.all(torch.isclose(bias_value, ref_bias, atol=0.02)), f"{bias_value} != {ref_bias}"
             return
-        raise ValueError("Not found node with bias")
+        msg = "Not found node with bias"
+        raise ValueError(msg)
 
 
 @pytest.mark.cuda
@@ -76,16 +77,3 @@ class TestTorchCudaFBCAlgorithm(TestTorchFBCAlgorithm):
     @staticmethod
     def fn_to_type(tensor):
         return torch.Tensor(tensor).cuda()
-
-    @staticmethod
-    def check_bias(model: NNCFNetwork, ref_bias: list):
-        ref_bias = torch.Tensor(ref_bias)
-        nncf_graph = NNCFGraphFactory.create(model)
-        for node in nncf_graph.get_all_nodes():
-            if not is_node_with_fused_bias(node, nncf_graph):
-                continue
-            bias_value = get_fused_bias_value(node, model).cpu()
-            # TODO(AlexanderDokuchaev): return atol=0.0001 after fix 109189
-            assert torch.all(torch.isclose(bias_value, ref_bias, atol=0.02)), f"{bias_value} != {ref_bias}"
-            return
-        raise ValueError("Not found node with bias")

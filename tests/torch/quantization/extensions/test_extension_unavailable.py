@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,7 +11,7 @@
 
 import pytest
 
-from tests.shared.isolation_runner import run_pytest_case_function_in_separate_process
+from tests.cross_fw.shared.isolation_runner import run_pytest_case_function_in_separate_process
 from tests.torch.quantization.extensions.isolated_cases import (
     test_missing_cuda_compiler_fails_with_message_isolated_calledprocesserror,
 )

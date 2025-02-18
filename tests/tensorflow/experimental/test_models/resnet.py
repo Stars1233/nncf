@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -57,7 +57,7 @@ class SqueezeExcitation(tf.keras.layers.Layer):
         activation="relu",
         gating_activation="sigmoid",
         round_down_protect=True,
-        **kwargs
+        **kwargs,
     ):
         """Initializes a squeeze and excitation layer.
 
@@ -212,7 +212,8 @@ def get_stochastic_depth_rate(init_rate, i, n):
     """
     if init_rate is not None:
         if init_rate < 0 or init_rate > 1:
-            raise ValueError("Initial drop rate must be within 0 and 1.")
+            msg = "Initial drop rate must be within 0 and 1."
+            raise ValueError(msg)
         rate = init_rate * float(i) / n
     else:
         rate = None
@@ -288,7 +289,7 @@ class ResidualBlock(tf.keras.layers.Layer):
         norm_momentum=0.99,
         norm_epsilon=0.001,
         bn_trainable=True,
-        **kwargs
+        **kwargs,
     ):
         """Initializes a residual block with BN after convolutions.
 
@@ -487,7 +488,7 @@ class BottleneckBlock(tf.keras.layers.Layer):
         norm_momentum=0.99,
         norm_epsilon=0.001,
         bn_trainable=True,
-        **kwargs
+        **kwargs,
     ):
         """Initializes a standard bottleneck block with BN after convolutions.
 
@@ -795,7 +796,7 @@ class ResNet(tf.keras.Model):
         kernel_regularizer: Optional[tf.keras.regularizers.Regularizer] = None,
         bias_regularizer: Optional[tf.keras.regularizers.Regularizer] = None,
         bn_trainable: bool = True,
-        **kwargs
+        **kwargs,
     ):
         """Initializes a ResNet model.
 
@@ -909,7 +910,8 @@ class ResNet(tf.keras.Model):
             x = self._norm(axis=bn_axis, momentum=norm_momentum, epsilon=norm_epsilon, trainable=bn_trainable)(x)
             x = get_activation(activation, use_keras_layer=True)(x)
         else:
-            raise ValueError("Stem type {} not supported.".format(stem_type))
+            msg = f"Stem type {stem_type} not supported."
+            raise ValueError(msg)
 
         if replace_stem_max_pool:
             x = tf.keras.layers.Conv2D(
@@ -934,7 +936,8 @@ class ResNet(tf.keras.Model):
             elif spec[0] == "bottleneck":
                 block_fn = BottleneckBlock
             else:
-                raise ValueError("Block fn `{}` is not supported.".format(spec[0]))
+                msg = f"Block fn `{spec[0]}` is not supported."
+                raise ValueError(msg)
             x = self._block_group(
                 inputs=x,
                 filters=int(spec[1] * self._depth_multiplier),
@@ -942,7 +945,7 @@ class ResNet(tf.keras.Model):
                 block_fn=block_fn,
                 block_repeats=spec[2],
                 stochastic_depth_drop_rate=get_stochastic_depth_rate(self._init_stochastic_depth_rate, i + 2, 5),
-                name="block_group_l{}".format(i + 2),
+                name=f"block_group_l{i + 2}",
             )
             endpoints[str(i + 2)] = x
 
@@ -1063,7 +1066,7 @@ class ClassificationModel(tf.keras.Model):
         norm_momentum: float = 0.99,
         norm_epsilon: float = 0.001,
         skip_logits_layer: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """Classification initialization function.
 

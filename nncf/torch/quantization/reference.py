@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -33,7 +33,8 @@ class ReferenceQuantize:
         elif backend_type is ReferenceBackendType.TORCH:
             self.backend = torch
         else:
-            raise nncf.UnsupportedBackendError("Unknown backend for ReferenceQuantize")
+            msg = "Unknown backend for ReferenceQuantize"
+            raise nncf.UnsupportedBackendError(msg)
 
     def _astype(self, tensor: GeneralizedTensor, dtype) -> GeneralizedTensor:
         if self.backend is np:

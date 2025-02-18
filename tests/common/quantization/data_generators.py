@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -356,10 +356,11 @@ def check_outputs(arr_a: np.array, arr_b: np.array, is_near_mid_point: np.array,
     num_fail_spec_points = sum(np.invert(isclose_spec_points))
 
     if num_fail_points or num_fail_spec_points:
-        raise ValueError(
+        msg = (
             f"Points: {num_fail_points} / {len(isclose_points)} | max_d={arr_diff_points.max():.8f} "
             f"Mid_points: {num_fail_spec_points} / {len(isclose_spec_points)} | max_d={arr_diff_spec_points.max():.8f}"
         )
+        raise ValueError(msg)
 
 
 def scatter_plot(

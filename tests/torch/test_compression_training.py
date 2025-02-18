@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,9 +20,9 @@ import pytest
 from pytest import approx
 
 from nncf import NNCFConfig
-from tests.shared.helpers import get_cli_dict_args
-from tests.shared.paths import PROJECT_ROOT
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.helpers import get_cli_dict_args
+from tests.cross_fw.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.torch.helpers import Command
 from tests.torch.sample_test_validator import BaseSampleTestCaseDescriptor
 from tests.torch.sample_test_validator import BaseSampleValidator
@@ -72,9 +72,7 @@ class CompressionTrainingValidator(BaseSampleValidator):
 
     def _create_command_line(self, args):
         executable = self._sample_handler.get_executable()
-        cli_args = " ".join(
-            key if (val is None or val is True) else "{} {}".format(key, val) for key, val in args.items()
-        )
+        cli_args = " ".join(key if (val is None or val is True) else f"{key} {val}" for key, val in args.items())
         return f"{sys.executable} {executable} {cli_args}"
 
 
@@ -168,7 +166,7 @@ class CompressionTrainingTestDescriptor(BaseSampleTestCaseDescriptor):
             )
         self.weights_path = self._get_weight_path(weekly_models_path)
         if self.weights_path is not None:
-            assert os.path.exists(self.weights_path), "Weights file does not exist: {}".format(self.weights_path)
+            assert os.path.exists(self.weights_path), f"Weights file does not exist: {self.weights_path}"
         checkpoint_save_dir = str(tmp_path_factory.mktemp("models"))
         self.checkpoint_save_dir = os.path.join(checkpoint_save_dir, self.execution_arg.replace("-", "_"))
         return self

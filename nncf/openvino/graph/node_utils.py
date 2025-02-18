@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,6 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import numpy as np
 import openvino.runtime as ov
+import openvino.runtime.op as op
 import openvino.runtime.opset13 as opset
 
 import nncf
@@ -41,8 +42,10 @@ from nncf.openvino.graph.metatypes.openvino_metatypes import OVIfMetatype
 from nncf.openvino.graph.metatypes.openvino_metatypes import OVMatMulMetatype
 from nncf.openvino.graph.metatypes.openvino_metatypes import OVOpMetatype
 from nncf.openvino.graph.metatypes.openvino_metatypes import get_node_metatype
+from nncf.tensor import Tensor
+from nncf.tensor import TensorBackend
 
-InplaceInsertionFnType = Callable[[ov.Node, int], ov.Node]
+InplaceInsertionFnType = Callable[[ov.Node, int, str], ov.Node]
 
 
 def get_add_bias_node(node: NNCFNode, nncf_graph: NNCFGraph) -> Optional[NNCFNode]:
@@ -97,42 +100,47 @@ def get_number_if_op(model: ov.Model) -> int:
     """
 
     def cnt_if_op(model: ov.Model, cnt: int) -> int:
-        for op in model.get_ops():
-            if get_node_metatype(op) == OVIfMetatype:
+        for model_op in model.get_ops():
+            if get_node_metatype(model_op) == OVIfMetatype:
                 cnt += 1
-                cnt = cnt_if_op(op.get_function(0), cnt)
-                cnt = cnt_if_op(op.get_function(1), cnt)
+                cnt = cnt_if_op(model_op.get_function(0), cnt)
+                cnt = cnt_if_op(model_op.get_function(1), cnt)
         return cnt
 
     return cnt_if_op(model, 0)
 
 
-def get_const_value(const_node: ov.Node) -> np.ndarray:
+def get_const_value(const_node: ov.Node, cast_bf16_to_fp32: bool = True) -> np.ndarray:
     """
     Returns the constant tensor for the node.
     This method is applicable only for the floating-point constant data.
 
     :param const_node: OpenVINO node.
+    :param cast_bf16_to_fp32: Whether to cast bf16 node data to fp32 or not. If False and the node contains bf16 data,
+        the resulting bf16 value will be returned encoded inside a numpy.float16 array.
     :return: The constant value.
     """
-    if const_node.get_element_type() == ov.Type.bf16:
-        # Fixed FP32 data type as the result for BF16 constant
+    if const_node.get_element_type() == ov.Type.bf16 and cast_bf16_to_fp32:
         return const_node.get_data(dtype=np.float32)
     return const_node.data
 
 
-def get_bias_value(node_with_bias: NNCFNode, nncf_graph: NNCFGraph, model: ov.Model) -> np.ndarray:
+def get_bias_value(
+    node_with_bias: NNCFNode, nncf_graph: NNCFGraph, model: ov.Model, node_mapping: Dict[str, ov.Node] = None
+) -> np.ndarray:
     """
     Returns the bias tensor for the biased node.
 
     :param node_with_bias: The node that corresponds to the operation with bias.
     :param nncf_graph: NNCFGraph instance.
     :param model: The model that contains this operation.
+    :param node_mapping: Original nodes mapping cache.
     :return: The bias value that is applied to the output tensor of the node's operation.
     """
-    ops_dict = {op.get_friendly_name(): op for op in model.get_ops()}
+    if node_mapping is None:
+        node_mapping = {op.get_friendly_name(): op for op in model.get_ops()}
     bias_constant = get_node_with_bias_value(get_add_bias_node(node_with_bias, nncf_graph), nncf_graph)
-    ov_bias_constant = ops_dict[bias_constant.node_name]
+    ov_bias_constant = node_mapping[bias_constant.node_name]
     return get_const_value(ov_bias_constant)
 
 
@@ -183,7 +191,6 @@ def get_result_node_name(output_name: str, port_id: int) -> str:
     :param port_id: Node port.
     :return: Name of Result.
     """
-
     return f"Result_{output_name}.{port_id}"
 
 
@@ -195,7 +202,6 @@ def get_parameter_node_name(parameter_name: str, port_id: int) -> str:
     :param port_id: Node port.
     :return: Name of Parameter.
     """
-
     return f"Parameter_{parameter_name}.{port_id}"
 
 
@@ -212,7 +218,10 @@ def get_ov_model_reduce_node_name(output_name: str, reduce_node_name: str, port_
 
 
 def get_inplace_reduce_op(
-    op: Type[ov.Node], reduction_axes: Optional[ReductionAxes], use_abs: bool
+    op: Type[ov.Node],
+    reduction_axes: Optional[ReductionAxes],
+    use_abs: bool,
+    keep_dims: bool = True,
 ) -> InplaceInsertionFnType:
     """
     Returns inplace insertion function that adds reduce node to a passed node.
@@ -220,7 +229,8 @@ def get_inplace_reduce_op(
     :param op: OpenVINO reduction operation type to insert.
     :param reduction_axes: Target reduction axes for the reduction node.
         Reduce along all axes in case reduction_axes are None.
-    :param use_abs: Wheather reduce absolute values of input tensors or not.
+    :param use_abs: Whether reduce absolute values of input tensors or not.
+    :param keep_dims: Whether to keep the original dimension length or return result as a scalar.
     :returns: Inplace insertion function to use in ModelTransformer.
     """
 
@@ -239,7 +249,7 @@ def get_inplace_reduce_op(
         return op(
             op_input.output(output_port_id),
             reduction_axes=np.array(reduction_axes_, dtype=np.int64),
-            keep_dims=True,
+            keep_dims=keep_dims,
             name=output_node_name,
         )
 
@@ -257,16 +267,19 @@ def get_inplace_min_op(reduction_axes: Optional[ReductionAxes]) -> InplaceInsert
     return get_inplace_reduce_op(opset.reduce_min, reduction_axes, False)
 
 
-def get_inplace_max_op(reduction_axes: Optional[ReductionAxes], use_abs_max: bool) -> InplaceInsertionFnType:
+def get_inplace_max_op(
+    reduction_axes: Optional[ReductionAxes], use_abs_max: bool, keep_dims: bool = True
+) -> InplaceInsertionFnType:
     """
     Returns inplace max function that adds reduce max node to a passed node.
 
     :param reduction_axes: Target reduction axes for the reduction node.
         Reduce along all axes in case reduction_axes are None.
-    :param use_abs: Wheather reduce absolute values of input tensors or not.
+    :param use_abs_max: Whether reduce absolute values of input tensors or not.
+    :param keep_dims: Whether to keep the original dimension length or return result as a scalar.
     :returns: Inplace insertion function to use in ModelTransformer.
     """
-    return get_inplace_reduce_op(opset.reduce_max, reduction_axes, use_abs_max)
+    return get_inplace_reduce_op(opset.reduce_max, reduction_axes, use_abs_max, keep_dims)
 
 
 def get_inplace_mean_op(reduction_axes: Optional[ReductionAxes]) -> InplaceInsertionFnType:
@@ -278,6 +291,135 @@ def get_inplace_mean_op(reduction_axes: Optional[ReductionAxes]) -> InplaceInser
     :returns: Inplace insertion function to use in ModelTransformer.
     """
     return get_inplace_reduce_op(opset.reduce_mean, reduction_axes, False)
+
+
+def var_op(
+    op_input: ov.Output, output_node_name: str, reduction_axes: Optional[np.ndarray] = None, keep_dims: bool = True
+) -> ov.Node:
+    """
+    Return a subgraph computing variance on a given output.
+
+    :param op_input: An output to compute variance for.
+    :param output_node_name: Variance output name.
+    :param keep_dims: Whether to keep the original dimension length or return result as a scalar.
+    :param reduction_axes: Axes along which to compute variance.
+    """
+    mean = opset.reduce_mean(
+        op_input,
+        reduction_axes=reduction_axes,
+        keep_dims=True,
+        name=f"{output_node_name}/mean",
+    )
+    diff = opset.squared_difference(mean, op_input, name=f"{output_node_name}/squared_diff")
+    variance = opset.reduce_mean(
+        diff,
+        reduction_axes=reduction_axes,
+        keep_dims=keep_dims,
+        name=output_node_name,
+    )
+    return variance
+
+
+def get_inplace_mean_var_op(reduction_axes: Optional[ReductionAxes] = None) -> InplaceInsertionFnType:
+    """
+    Return an operation getter function that computes variance across given axes and then mean-reduces the result across
+    the remaining axes.
+
+    :param reduction_axes: Axes along which to compute variance.
+    """
+
+    def get_mean_var_reduce_op(node: ov.Node, output_port_id: int, output_node_name: str) -> ov.Node:
+        partial_shape = get_partial_shape_safe(node, output_port_id)
+        all_axes = np.arange(partial_shape.rank.get_length()).astype(np.int64)
+        reduction_axes_ = np.array(all_axes if reduction_axes is None else reduction_axes, dtype=np.int64)
+
+        reduce_all = np.array_equal(reduction_axes_, all_axes)
+        var_op_name = output_node_name if reduce_all else f"{output_node_name}/var"
+        result = var_op(node.output(output_port_id), var_op_name, reduction_axes_, keep_dims=not reduce_all)
+        if not reduce_all:
+            result = opset.reduce_mean(
+                result,
+                reduction_axes=all_axes,
+                keep_dims=False,
+                name=output_node_name,
+            )
+
+        return result
+
+    return get_mean_var_reduce_op
+
+
+def get_inplace_max_var_op(reduction_axes: Optional[ReductionAxes] = None) -> InplaceInsertionFnType:
+    """
+    Return an operation getter function that computes variance across given axes and then max-reduces the result across
+    the remaining axes.
+
+    :param reduction_axes: Axes along which to compute variance.
+    """
+
+    def get_max_var_reduce_op(node: ov.Node, output_port_id: int, output_node_name: str) -> ov.Node:
+        partial_shape = get_partial_shape_safe(node, output_port_id)
+        all_axes = np.arange(partial_shape.rank.get_length()).astype(np.int64)
+        reduction_axes_ = np.array(all_axes if reduction_axes is None else reduction_axes, dtype=np.int64)
+
+        reduce_all = np.array_equal(reduction_axes_, all_axes)
+        var_op_name = output_node_name if reduce_all else f"{output_node_name}/var"
+        result = var_op(node.output(output_port_id), var_op_name, reduction_axes_, keep_dims=not reduce_all)
+        if not reduce_all:
+            result = opset.reduce_max(
+                result,
+                reduction_axes=all_axes,
+                keep_dims=False,
+                name=output_node_name,
+            )
+
+        return result
+
+    return get_max_var_reduce_op
+
+
+def get_inplace_mean_max_op(reduction_axes: Optional[ReductionAxes], use_abs_max: bool) -> InplaceInsertionFnType:
+    """
+    Return an operation getter function that computes maximum across given axes and then mean-reduces the result across
+    the remaining axes.
+
+    :param reduction_axes: Axes to compute maximum across.
+    :param use_abs_max: Whether to apply abs() operation before the max operation.
+    """
+
+    def get_mean_max_reduce_op(node: ov.Node, output_port_id: int, output_node_name: str) -> ov.Node:
+        partial_shape = get_partial_shape_safe(node, output_port_id)
+        all_axes = np.arange(partial_shape.rank.get_length()).astype(np.int64)
+        reduction_axes_ = np.array(all_axes if reduction_axes is None else reduction_axes, dtype=np.int64)
+
+        reduce_all = np.array_equal(reduction_axes_, all_axes)
+        max_op_name = output_node_name if reduce_all else f"{output_node_name}/max"
+        result = get_inplace_max_op(reduction_axes, use_abs_max, keep_dims=not reduce_all)(
+            node, output_port_id, max_op_name
+        )
+        if not reduce_all:
+            result = opset.reduce_mean(
+                result,
+                reduction_axes=all_axes,
+                keep_dims=False,
+                name=output_node_name,
+            )
+
+        return result
+
+    return get_mean_max_reduce_op
+
+
+def get_inplace_shape_op() -> InplaceInsertionFnType:
+    """
+    Return an operation returning a shape on the given output.
+    """
+
+    def get_shape_op(node: ov.Node, output_port_id: int, output_node_name: str) -> ov.Node:
+        result = opset.shape_of(node.output(output_port_id), name=output_node_name)
+        return result
+
+    return get_shape_op
 
 
 def get_inplace_batch_mean_op() -> InplaceInsertionFnType:
@@ -342,9 +484,8 @@ def get_inplace_mean_per_ch(axis: int) -> InplaceInsertionFnType:
 def get_partial_shape_safe(node, port_id) -> Tuple[int, ...]:
     partial_shape = node.get_output_partial_shape(port_id)
     if partial_shape.rank.is_dynamic or not partial_shape.all_non_negative:
-        raise nncf.ValidationError(
-            f"Could not collect statistics for the node {node} because its output shape rank is dynamic or negative"
-        )
+        msg = f"Could not collect statistics for the node {node} because its output shape rank is dynamic or negative"
+        raise nncf.ValidationError(msg)
     return partial_shape
 
 
@@ -377,7 +518,8 @@ def get_weight_channel_axes(node: NNCFNode) -> List[int]:
     :return: Axes numbers of the weight tensor which correspond to its channels.
     """
     if node.metatype not in OPERATIONS_WITH_WEIGHTS:
-        raise ValueError("Channel axis cannot be defined for operation without weights.")
+        msg = "Channel axis cannot be defined for operation without weights."
+        raise ValueError(msg)
 
     if node.metatype in CONV_OPERATIONS:
         weights_layout = get_conv_weights_layout_from_node(node)
@@ -495,3 +637,42 @@ def get_activation_channel_axis(node: NNCFNode, port_id: int, input_shape: Tuple
         channel_axis = activations_layout.index(OVLayoutElem.C_IN)
 
     return channel_axis
+
+
+def convert_op(node: ov.Node, target_dtype: ov.Type) -> ov.Node:
+    """
+    Return a subgraph which converts the given node output to the target data type. If the output is already in the
+    target data type then the given node is returned.
+
+    :param node: The input node to convert.
+    :param target_dtype: The target data type to convert the input node to.
+    :return: The converted node.
+    """
+    if node.get_element_type() == target_dtype:
+        return node
+    return opset.convert(node, target_dtype)
+
+
+def non_convertable_divide_op(a: ov.Node, b: ov.Node) -> ov.Node:
+    """
+    Creates a "non-convertable" divide operation. It won't be converted to a*(1/b).
+    """
+    divide_node = a / b
+    divide_node.get_rt_info()["nonconvertable_divide_0"] = True
+    return divide_node
+
+
+def create_ov_const_from_tensor(x: Tensor, dtype: ov.Type, name: Optional[str] = None) -> op.Constant:
+    """
+    Create an OpenVINO Constant node from the given tensor.
+    :param x: Data tensor. Supports NumPy and OV tensor backends. If x backend is OV, the constant node is created
+        directly from underlying OV tensor.
+    :param dtype: Data type of the constant.
+    :param name: Optional name of the constant.
+    :return: OpenVINO Constant node.
+    """
+    if x.backend == TensorBackend.ov:
+        assert x.data.get_element_type() == dtype
+        return opset.constant(x.data, name=name, shared_memory=True)
+    const = opset.constant(x.data, dtype=dtype, name=name)
+    return const

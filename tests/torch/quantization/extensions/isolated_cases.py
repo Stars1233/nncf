@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,7 +22,7 @@ import pytest
 import torch
 
 import nncf
-from tests.shared.isolation_runner import ISOLATION_RUN_ENV_VAR
+from tests.cross_fw.shared.isolation_runner import ISOLATION_RUN_ENV_VAR
 
 
 @pytest.mark.skipif(ISOLATION_RUN_ENV_VAR not in os.environ, reason="Should be run via isolation proxy")

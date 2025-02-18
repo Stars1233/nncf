@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -178,6 +178,12 @@ class DequantizeTestMetatype(TestMetatype):
     name = "dequantize"
 
 
+@METATYPES_FOR_TEST.register()
+class ScaledDotProductAttentionMetatype(TestMetatype):
+    name = "scaled_dot_product_attention"
+    target_input_ports = [0, 1]
+
+
 WEIGHT_LAYER_METATYPES = [LinearTestMetatype, Conv2dTestMetatype, MatMulTestMetatype]
 
 
@@ -189,6 +195,7 @@ DEFAULT_TEST_QUANT_TRAIT_MAP = {
         GeluTestMetatype,
         LinearTestMetatype,
         AddTestMetatype,
+        ScaledDotProductAttentionMetatype,
     ],
     QuantizationTrait.CONCAT: [CatTestMetatype],
 }

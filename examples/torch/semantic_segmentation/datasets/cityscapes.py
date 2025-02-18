@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -194,7 +194,8 @@ class Cityscapes(data.Dataset):
                 extension_filter=self.img_extension,
             )
         else:
-            raise nncf.ValidationError("Unexpected dataset mode. Supported modes are: train, val and test")
+            msg = "Unexpected dataset mode. Supported modes are: train, val and test"
+            raise nncf.ValidationError(msg)
 
     def __getitem__(self, index):
         """
@@ -213,7 +214,8 @@ class Cityscapes(data.Dataset):
         elif self.mode.lower() == "test":
             data_path, label_path = self.test_data[index], self.test_labels[index]
         else:
-            raise nncf.ValidationError("Unexpected dataset mode. Supported modes are: train, val and test")
+            msg = "Unexpected dataset mode. Supported modes are: train, val and test"
+            raise nncf.ValidationError(msg)
 
         img, label = self.loader(data_path, label_path)
 
@@ -234,4 +236,5 @@ class Cityscapes(data.Dataset):
         if self.mode.lower() == "test":
             return len(self.test_data)
 
-        raise nncf.ValidationError("Unexpected dataset mode. Supported modes are: train, val and test")
+        msg = "Unexpected dataset mode. Supported modes are: train, val and test"
+        raise nncf.ValidationError(msg)

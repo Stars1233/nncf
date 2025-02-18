@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -28,9 +28,9 @@ from nncf.torch.checkpoint_loading import load_state
 from nncf.torch.quantization.algo import QUANTIZER_BUILDER_STATE_VERSION_SAVE_NAME
 from nncf.torch.quantization.algo import QuantizerBuilderStateVersion
 from nncf.torch.quantization.external_quantizer import EXTERNAL_QUANTIZERS_STORAGE_PREFIX
-from tests.shared.helpers import get_cli_dict_args
-from tests.shared.paths import ROOT_PYTHONPATH_ENV
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.helpers import get_cli_dict_args
+from tests.cross_fw.shared.paths import ROOT_PYTHONPATH_ENV
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.torch.helpers import Command
 from tests.torch.helpers import create_compressed_model_and_algo_for_test
 from tests.torch.helpers import create_ones_mock_dataloader

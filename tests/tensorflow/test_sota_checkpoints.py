@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -25,12 +25,13 @@ import tensorflow as tf
 import yaml
 from pytest import FixtureRequest
 
-from tests.shared.command import Command
-from tests.shared.metric_thresholds import DIFF_FP32_MAX_GLOBAL
-from tests.shared.metric_thresholds import DIFF_FP32_MIN_GLOBAL
-from tests.shared.paths import DATASET_DEFINITIONS_PATH
-from tests.shared.paths import PROJECT_ROOT
-from tests.shared.paths import TEST_ROOT
+from tests.cross_fw.shared.command import Command
+from tests.cross_fw.shared.metric_thresholds import DIFF_FP32_MAX_GLOBAL
+from tests.cross_fw.shared.metric_thresholds import DIFF_FP32_MIN_GLOBAL
+from tests.cross_fw.shared.openvino_version import get_openvino_version
+from tests.cross_fw.shared.paths import DATASET_DEFINITIONS_PATH
+from tests.cross_fw.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import TEST_ROOT
 
 DIFF_TARGET_TF_MIN = -0.1
 DIFF_TARGET_TF_MAX = 0.1
@@ -85,6 +86,7 @@ class EvalRunParamsStruct:
     diff_target_ov_min: float
     diff_target_ov_max: float
     skip_ov: Optional[str]
+    skip_ov_version: Optional[str]
     xfail_ov: Optional[str]
 
 
@@ -138,7 +140,8 @@ def read_reference_file(ref_path: Path) -> List[EvalRunParamsStruct]:
             model_dict = datasets[dataset_name]
             for model_name, sample_dict in model_dict["topologies"].items():
                 if model_name in model_names:
-                    raise RuntimeError(f"Model name {model_name} is not unique.")
+                    msg = f"Model name {model_name} is not unique."
+                    raise RuntimeError(msg)
                 model_names.append(model_name)
                 batch = sample_dict.get("batch_per_gpu")
                 resume = sample_dict.get("resume")
@@ -163,6 +166,7 @@ def read_reference_file(ref_path: Path) -> List[EvalRunParamsStruct]:
                         diff_target_tf_min=sample_dict.get("diff_target_tf_min", DIFF_TARGET_TF_MIN),
                         diff_target_tf_max=sample_dict.get("diff_target_tf_max", DIFF_TARGET_TF_MAX),
                         skip_ov=sample_dict.get("skip_ov"),
+                        skip_ov_version=sample_dict.get("skip_ov_version"),
                         xfail_ov=sample_dict.get("xfail_ov"),
                     )
                 )
@@ -356,7 +360,21 @@ class TestSotaCheckpoints:
             return {"weights": sota_checkpoints_dir / eval_test_struct.weights}
         elif PRETRAINED_PARAM_AVAILABILITY[eval_test_struct.sample_type]:
             return {"pretrained": True}
-        raise RuntimeError("Incorrect config")
+        msg = "Incorrect config"
+        raise RuntimeError(msg)
+
+    @staticmethod
+    def get_env():
+        """
+        Returns a copy of the current environment with the `PYTHONPATH` variable updated
+        to include the project root directory
+        """
+        env = os.environ.copy()
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] += ":" + str(PROJECT_ROOT)
+        else:
+            env["PYTHONPATH"] = str(PROJECT_ROOT)
+        return env
 
     @pytest.mark.eval
     @pytest.mark.parametrize("eval_test_struct", EVAL_TEST_STRUCT, ids=idfn)
@@ -402,7 +420,7 @@ class TestSotaCheckpoints:
             **weights_param,
         )
 
-        runner = Command(cmd, cwd=PROJECT_ROOT)
+        runner = Command(cmd, cwd=PROJECT_ROOT, env=self.get_env())
         exit_code = runner.run(assert_returncode_zero=False)
         is_ok = exit_code == 0 and metrics_dump_file_path.exists()
 
@@ -473,13 +491,15 @@ class TestSotaCheckpoints:
     ):
         if not openvino:
             pytest.skip()
-        if eval_test_struct.skip_ov:
+        if eval_test_struct.skip_ov and (
+            eval_test_struct.skip_ov_version is None or eval_test_struct.skip_ov_version == get_openvino_version()
+        ):
             status = f"Skip by: {eval_test_struct.skip_ov}"
             collected_data.append(ResultInfo(model_name=eval_test_struct.model_name, backend="OV", status=status))
             pytest.skip(status)
 
         # WA to avoid OS error
-        env = os.environ.copy()
+        env = self.get_env()
         env["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
         sample_type = eval_test_struct.sample_type

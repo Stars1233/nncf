@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,10 +30,11 @@ class TFCompressionAlgorithmBuilder(BaseCompressionAlgorithmBuilder):
             "compression_lr_multiplier", self.name
         )
         if compression_lr_multiplier is not None:
-            raise Exception(
+            msg = (
                 "compression_lr_multiplier is not supported when your work with a TF model in NNCF. "
                 "Please remove the compression_lr_multiplier attribute from your NNCFConfig."
             )
+            raise Exception(msg)
 
     def _get_state_without_name(self) -> Dict[str, Any]:
         """

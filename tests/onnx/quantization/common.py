@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -26,11 +26,11 @@ from nncf.quantization.advanced_parameters import AdvancedSmoothQuantParameters
 from nncf.quantization.algorithms.post_training.algorithm import PostTrainingQuantization
 from nncf.quantization.fake_quantize import FakeQuantizeParameters
 from nncf.tensor import Tensor
+from tests.cross_fw.shared.nx_graph import check_nx_graph
+from tests.cross_fw.shared.nx_graph import compare_nx_graph_with_reference
+from tests.cross_fw.shared.paths import TEST_ROOT
 from tests.onnx.common import get_random_generator
 from tests.onnx.opset_converter import convert_opset_version
-from tests.shared.nx_graph import check_nx_graph
-from tests.shared.nx_graph import compare_nx_graph_with_reference
-from tests.shared.paths import TEST_ROOT
 
 REFERENCE_GRAPHS_TEST_ROOT = "data/reference_graphs/quantization"
 

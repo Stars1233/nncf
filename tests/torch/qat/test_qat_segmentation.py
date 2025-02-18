@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -50,7 +50,7 @@ from examples.torch.semantic_segmentation.utils.loss_funcs import do_model_speci
 from nncf import NNCFConfig
 from nncf.common.compression import BaseCompressionAlgorithmController
 from nncf.torch.utils import is_main_process
-from tests.shared.paths import PROJECT_ROOT
+from tests.cross_fw.shared.paths import PROJECT_ROOT
 
 CONFIGS = list((PROJECT_ROOT / Path("examples/torch/semantic_segmentation/configs")).glob("*"))
 
@@ -91,7 +91,8 @@ def get_sample_config(quantization_config_path: Path, data_dir: Path, weights_di
             meta = datset_meta
             break
     else:
-        raise RuntimeError(f"Dataset for the config {str(quantization_config_path)} is unknown.")
+        msg = f"Dataset for the config {str(quantization_config_path)} is unknown."
+        raise RuntimeError(msg)
 
     weights_path = (
         weights_dir / "segmentation" / meta["name"] / (quantization_config_path.stem.split("_int8")[0] + ".pth")
@@ -208,14 +209,14 @@ def train(
         if config.distributed:
             datasets.train_data_loader.sampler.set_epoch(epoch)
 
-        logger.info(">>>> [Epoch: {0:d}] Validation".format(epoch))
+        logger.info(f">>>> [Epoch: {epoch:d}] Validation")
         _, (_, current_miou) = val_obj.run_epoch(config.print_step)
         # best_metric = max(current_miou, best_metric)
         acc_drop = original_metric - current_miou
         best_miou = max(current_miou, best_miou)
         logger.info(f"Metric: {current_miou}, FP32 diff: {acc_drop}")
         if accuracy_drop_is_acceptable(acc_drop):
-            logger.info(f"Accuracy is within 1 percent drop," f" pipeline is making early exit on epoch {epoch - 1}")
+            logger.info(f"Accuracy is within 1 percent drop, pipeline is making early exit on epoch {epoch - 1}")
             logger.info(
                 f"Epochs in config: {config.epochs}, epochs trained: {epoch}, epochs saved: {config.epochs - epoch}"
             )
@@ -224,10 +225,10 @@ def train(
             logger.info("Training pipeline is finished, accuracy was not recovered.")
             return acc_drop
 
-        logger.info(">>>> [Epoch: {0:d}] Training".format(epoch))
+        logger.info(f">>>> [Epoch: {epoch:d}] Training")
         epoch_loss, (_, miou) = train_obj.run_epoch(config.print_step)
 
-        logger.info(">>>> [Epoch: {0:d}] Avg. loss: {1:.4f} | Mean IoU: {2:.4f}".format(epoch, epoch_loss, miou))
+        logger.info(f">>>> [Epoch: {epoch:d}] Avg. loss: {epoch_loss:.4f} | Mean IoU: {miou:.4f}")
 
         lr_scheduler.step(epoch if not isinstance(lr_scheduler, ReduceLROnPlateau) else best_miou)
 

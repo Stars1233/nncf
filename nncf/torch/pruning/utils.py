@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -88,7 +88,8 @@ def _calculate_output_shape(graph: NNCFGraph, node: NNCFNode) -> Tuple[int, ...]
     elif isinstance(attrs, LinearLayerAttributes):
         shape = shape[:-1] + [attrs.out_features]
     else:
-        raise nncf.ValidationError(f"Unexpected node type {node.node_type} is fed to _calculate_output_shape")
+        msg = f"Unexpected node type {node.node_type} is fed to _calculate_output_shape"
+        raise nncf.ValidationError(msg)
     return tuple(shape)
 
 

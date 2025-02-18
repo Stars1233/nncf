@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,12 +22,14 @@ from nncf.common.graph.operator_metatypes import OUTPUT_NOOP_METATYPES
 from nncf.common.graph.operator_metatypes import OperatorMetatype
 from nncf.common.graph.operator_metatypes import OperatorMetatypeRegistry
 from nncf.common.hardware.opset import HWConfigOpName
+from nncf.experimental.common.check_feature import is_experimental_torch_tracing_enabled
 from nncf.torch.dynamic_graph.graph import DynamicGraph
 from nncf.torch.dynamic_graph.structs import NamespaceTarget
 
 ModuleAttributes = TypeVar("ModuleAttributes", bound=BaseLayerAttributes)
 
 PT_OPERATOR_METATYPES = OperatorMetatypeRegistry("operator_metatypes")
+FX_OPERATOR_METATYPES = OperatorMetatypeRegistry("operator_metatypes")
 
 
 class PTOperatorMetatype(OperatorMetatype):
@@ -56,6 +58,7 @@ class PTOperatorMetatype(OperatorMetatype):
         NamespaceTarget.TORCH_NN_FUNCTIONAL: [],
         NamespaceTarget.TORCH_TENSOR: [],
         NamespaceTarget.TORCH: [],
+        NamespaceTarget.ATEN: [],
     }
 
     subtypes: List[Type["PTOperatorMetatype"]] = []
@@ -82,7 +85,7 @@ class PTOperatorMetatype(OperatorMetatype):
     @classmethod
     def determine_subtype(
         cls, layer_attributes: Optional[BaseLayerAttributes] = None, function_args=None, functions_kwargs=None
-    ) -> Optional["PTOperatorSubtype"]:
+    ) -> Optional["type[PTOperatorSubtype]"]:
         matches = []
         for subtype in cls.get_subtypes():
             if subtype.matches(layer_attributes, function_args, functions_kwargs):
@@ -146,6 +149,13 @@ class PTDepthwiseConvOperatorSubtype(PTOperatorSubtype):
     def matches(
         cls, layer_attributes: Optional[BaseLayerAttributes] = None, function_args=None, functions_kwargs=None
     ) -> bool:
+        if layer_attributes is None and function_args is not None and functions_kwargs is not None:
+            # Used for torch2
+            weight_meta = functions_kwargs.get("weight", function_args[0])
+            in_channels = weight_meta.shape[1]
+            groups = functions_kwargs.get("groups", function_args[6] if len(function_args) > 6 else 1)
+            return in_channels > 1 and groups == in_channels
+
         if _is_called_inside_nncf_module(functions_kwargs):
             return False
         if not isinstance(layer_attributes, ConvolutionLayerAttributes):
@@ -443,7 +453,7 @@ class PTHardTanhMetatype(PTOperatorMetatype):
 @PT_OPERATOR_METATYPES.register()
 class PTHardSwishMetatype(PTOperatorMetatype):
     name = "HardSwishOp"
-    module_to_function_names = {NamespaceTarget.TORCH_NN_FUNCTIONAL: ["hardswish"]}
+    module_to_function_names = {NamespaceTarget.TORCH_NN_FUNCTIONAL: ["hardswish", "hardswish_"]}
     num_expected_input_edges = 1
 
 
@@ -528,7 +538,7 @@ class PTGELUMetatype(PTOperatorMetatype):
 @PT_OPERATOR_METATYPES.register()
 class PTSILUMetatype(PTOperatorMetatype):
     name = "SiluOp"
-    module_to_function_names = {NamespaceTarget.TORCH_NN_FUNCTIONAL: ["silu"]}
+    module_to_function_names = {NamespaceTarget.TORCH_NN_FUNCTIONAL: ["silu"], NamespaceTarget.ATEN: ["silu_"]}
 
 
 @PT_OPERATOR_METATYPES.register()
@@ -692,7 +702,7 @@ class PTRoundMetatype(PTOperatorMetatype):
 @PT_OPERATOR_METATYPES.register()
 class PTDropoutMetatype(PTOperatorMetatype):
     name = "DropoutOp"
-    module_to_function_names = {NamespaceTarget.TORCH_NN_FUNCTIONAL: ["dropout"]}
+    module_to_function_names = {NamespaceTarget.TORCH_NN_FUNCTIONAL: ["dropout"], NamespaceTarget.TORCH: ["dropout_"]}
 
 
 @PT_OPERATOR_METATYPES.register()
@@ -706,6 +716,7 @@ class PTModuleBatchNormMetatype(PTModuleOperatorSubtype):
     name = "BatchNormOp"
     module_to_function_names = {
         NamespaceTarget.TORCH_NN_FUNCTIONAL: ["batch_norm"],
+        NamespaceTarget.ATEN: ["_native_batch_norm_legit_no_training", "cudnn_batch_norm"],
     }
 
 
@@ -714,10 +725,18 @@ class PTBatchNormMetatype(PTOperatorMetatype):
     name = "BatchNormOp"
     module_to_function_names = {
         NamespaceTarget.TORCH_NN_FUNCTIONAL: ["batch_norm"],
+        NamespaceTarget.ATEN: ["_native_batch_norm_legit_no_training", "cudnn_batch_norm"],
     }
     subtypes = [PTModuleBatchNormMetatype]
-    weight_port_ids = [3]
-    bias_port_id = 4
+
+    if is_experimental_torch_tracing_enabled():
+        # torch.batch_norm
+        weight_port_ids = [1]
+        bias_port_id = 2
+    else:
+        # torch.nn.functional.batch_norm
+        weight_port_ids = [3]
+        bias_port_id = 4
 
 
 @PT_OPERATOR_METATYPES.register()
@@ -798,7 +817,7 @@ class PTPadMetatype(PTOperatorMetatype):
 @PT_OPERATOR_METATYPES.register()
 class PTCatMetatype(PTOperatorMetatype):
     name = "CatOp"
-    module_to_function_names = {NamespaceTarget.TORCH: ["cat", "stack"]}
+    module_to_function_names = {NamespaceTarget.TORCH: ["cat", "stack", "concat"]}
     hw_config_names = [HWConfigOpName.CONCAT]
 
 
@@ -844,6 +863,7 @@ class PTGatherMetatype(PTOperatorMetatype):
     module_to_function_names = {
         NamespaceTarget.TORCH_TENSOR: ["index_select", "__getitem__"],
         NamespaceTarget.TORCH: ["gather", "index_select", "select", "where"],
+        NamespaceTarget.ATEN: ["slice"],
     }
 
 
@@ -880,6 +900,7 @@ class PTSplitMetatype(PTOperatorMetatype):
         NamespaceTarget.TORCH_NN_FUNCTIONAL: [],
         NamespaceTarget.TORCH_TENSOR: ["split", "chunk", "unbind"],
         NamespaceTarget.TORCH: ["split", "chunk", "unbind"],
+        NamespaceTarget.ATEN: ["split_with_sizes"],
     }
     hw_config_names = [HWConfigOpName.SPLIT, HWConfigOpName.CHUNK]
 
@@ -911,6 +932,14 @@ class PTEmbeddingMetatype(PTOperatorMetatype):
     hw_config_names = [HWConfigOpName.EMBEDDING]
     subtypes = [PTModuleEmbeddingMetatype]
     weight_port_ids = [1]
+
+
+@FX_OPERATOR_METATYPES.register()
+class PTAtenEmbeddingMetatype(OperatorMetatype):
+    name = "EmbeddingOp"
+    module_to_function_names = {NamespaceTarget.ATEN: ["embedding"]}
+    hw_config_names = [HWConfigOpName.EMBEDDING]
+    weight_port_ids = [0]
 
 
 @PT_OPERATOR_METATYPES.register(is_subtype=True)
@@ -1047,6 +1076,7 @@ class PTInterpolateMetatype(PTOperatorMetatype):
     name = "InterpolateOp"
     module_to_function_names = {
         NamespaceTarget.TORCH_NN_FUNCTIONAL: ["interpolate"],
+        NamespaceTarget.ATEN: ["upsample_nearest2d", "upsample_nearest_exact2d"],
     }
     hw_config_names = [HWConfigOpName.INTERPOLATE]
     num_expected_input_edges = 1
@@ -1095,6 +1125,18 @@ class PTScaledDotProductAttentionMetatype(PTOperatorMetatype):
     target_input_ports = [0, 1]
 
 
+@PT_OPERATOR_METATYPES.register()
+class PTCosMetatype(PTOperatorMetatype):
+    name = "CosOp"
+    module_to_function_names = {NamespaceTarget.TORCH: ["cos"]}
+
+
+@PT_OPERATOR_METATYPES.register()
+class PTSinMetatype(PTOperatorMetatype):
+    name = "SinOp"
+    module_to_function_names = {NamespaceTarget.TORCH: ["sin"]}
+
+
 def get_operator_metatypes() -> List[Type[OperatorMetatype]]:
     """
     Returns a list of the operator metatypes.
@@ -1135,9 +1177,35 @@ UNIFICATION_PRODUCING_METATYPES = [
     PTModuleLinearMetatype,
 ]
 
+ELEMENTWISE_OPERATIONS = [
+    PTAddMetatype,
+    PTMulMetatype,
+    PTSubMetatype,
+    PTDivMetatype,
+    PTLessMetatype,
+    PTLessEqualMetatype,
+    PTGreaterMetatype,
+    PTGreaterEqualMetatype,
+    PTEqualsMetatype,
+    PTNotEqualMetatype,
+    PTModMetatype,
+    PTLogicalOrMetatype,
+    PTLogicalXorMetatype,
+    PTLogicalAndMetatype,
+    PTMaxMetatype,
+    PTMinMetatype,
+]
+
 OP_NAMES_WITH_WEIGHTS = [x for meta in OPERATORS_WITH_WEIGHTS_METATYPES for x in meta.get_all_aliases()]
 
-QUANTIZE_NODE_TYPES = ["symmetric_quantize", "asymmetric_quantize"]
+QUANTIZE_NODE_TYPES = [
+    "symmetric_quantize",
+    "asymmetric_quantize",
+    "quantize_per_tensor",
+    "dequantize_per_tensor",
+    "quantize_per_channel",
+    "dequantize_per_channel",
+]
 
 # These metatypes mix outputs for different samples into one axis.
 # If reducers and aggregators collect statistics at the output of the following operations,

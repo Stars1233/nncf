@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +15,7 @@ from nncf.common.graph.layer_attributes import MultipleInputLayerAttributes
 from nncf.common.graph.operator_metatypes import OperatorMetatype
 from nncf.torch.graph.graph import PTNNCFGraph
 from nncf.torch.graph.operator_metatypes import PTModuleConv2dMetatype
-from tests.post_training.test_templates.models import NNCFGraphToTestConstantFiltering
+from tests.cross_fw.test_templates.models import NNCFGraphToTestConstantFiltering
 
 
 class DummyConstantMetatype(OperatorMetatype):

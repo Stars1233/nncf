@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -48,7 +48,8 @@ class OVOpMetatype(OperatorMetatype):
             if subtype.matches(node):
                 matches.append(subtype)
         if len(matches) > 1:
-            raise nncf.InternalError("Multiple subtypes match operator call - can not determine single subtype.")
+            msg = "Multiple subtypes match operator call - can not determine single subtype."
+            raise nncf.InternalError(msg)
         if not matches:
             return None
         return matches[0]
@@ -158,9 +159,23 @@ class OVAvgPoolMetatype(OVOpMetatype):
 
 
 @OV_OPERATOR_METATYPES.register()
+class OVAdaptiveAvgPoolMetatype(OVOpMetatype):
+    name = "AdaptiveAvgPoolOp"
+    op_names = ["AdaptiveAvgPool"]
+    hw_config_names = [HWConfigOpName.AVGPOOL]
+
+
+@OV_OPERATOR_METATYPES.register()
 class OVMaxPoolMetatype(OVOpMetatype):
     name = "MaxPoolOp"
     op_names = ["MaxPool"]
+    hw_config_names = [HWConfigOpName.MAXPOOL]
+
+
+@OV_OPERATOR_METATYPES.register()
+class OVAdaptiveMaxPoolMetatype(OVOpMetatype):
+    name = "AdaptiveMaxPoolOp"
+    op_names = ["AdaptiveMaxPool"]
     hw_config_names = [HWConfigOpName.MAXPOOL]
 
 
@@ -566,6 +581,13 @@ class OVStridedSliceMetatype(OVOpMetatype):
 
 
 @OV_OPERATOR_METATYPES.register()
+class OVSliceMetatype(OVOpMetatype):
+    name = "SliceOp"
+    op_names = ["Slice"]
+    hw_config_names = [HWConfigOpName.SLICE]
+
+
+@OV_OPERATOR_METATYPES.register()
 class OVExpMetatype(OVOpMetatype):
     name = "ExpOp"
     op_names = ["Exp"]
@@ -703,6 +725,18 @@ class OVScaledDotProductAttentionMetatype(OVOpMetatype):
     op_names = ["ScaledDotProductAttention"]
     hw_config_names = [HWConfigOpName.SCALED_DOT_PRODUCT_ATTENTION]
     target_input_ports = [0, 1]
+
+
+@OV_OPERATOR_METATYPES.register()
+class OVCosMetatype(OVOpMetatype):
+    name = "CosOp"
+    op_names = ["Cos"]
+
+
+@OV_OPERATOR_METATYPES.register()
+class OVSinMetatype(OVOpMetatype):
+    name = "SinOp"
+    op_names = ["Sin"]
 
 
 def get_operator_metatypes() -> List[Type[OperatorMetatype]]:

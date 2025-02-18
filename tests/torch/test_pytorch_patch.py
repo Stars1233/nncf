@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -10,6 +10,7 @@
 # limitations under the License.
 
 import inspect
+import os
 from typing import List
 
 import pytest
@@ -29,7 +30,7 @@ from nncf.torch.dynamic_graph.structs import NamespaceTarget
 from nncf.torch.dynamic_graph.trace_tensor import TensorMeta
 from nncf.torch.dynamic_graph.trace_tensor import TracedTensor
 from nncf.torch.graph.operator_metatypes import PT_OPERATOR_METATYPES
-from tests.shared.isolation_runner import run_pytest_case_function_in_separate_process
+from tests.cross_fw.shared.isolation_runner import run_pytest_case_function_in_separate_process
 from tests.torch.helpers import BasicConvTestModel
 from tests.torch.helpers import create_compressed_model_and_algo_for_test
 from tests.torch.helpers import register_bn_adaptation_init_args
@@ -113,9 +114,11 @@ def test_jit_script_exception_preserves_patching():
     run_pytest_case_function_in_separate_process(test_jit_script_exception_preserves_patching_isolated)
 
 
-@pytest.mark.xfail(is_windows(), reason="https://github.com/pytorch/pytorch/issues/122094")
-def test_torch_compile():
+@pytest.mark.skipif(is_windows(), reason="https://github.com/pytorch/pytorch/issues/122094")
+@pytest.mark.parametrize("compile_forward", [False, True])
+def test_torch_compile(compile_forward):
     # Run test case in a separate process to track patching of torch by NNCF
+    os.environ["COMPILE_FORWARD"] = f"{int(compile_forward)}"
     run_pytest_case_function_in_separate_process(test_compile)
 
 

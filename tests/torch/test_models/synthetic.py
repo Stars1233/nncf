@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,6 +21,7 @@ from torchvision.transforms.functional import normalize
 from nncf.torch import nncf_model_input
 from nncf.torch import register_module
 from nncf.torch.dynamic_graph.io_handling import wrap_nncf_model_outputs_with_objwalk
+from tests.torch.helpers import create_bn
 from tests.torch.helpers import create_conv
 
 
@@ -325,6 +326,16 @@ class Baddbmm(torch.nn.Module):
         return torch.baddbmm(x, y, z)
 
 
+class ScaledDotProductModel(nn.Module):
+    EMBED_DIM = 4
+    INPUT_SIZES = [2, 1, EMBED_DIM]
+
+    def forward(self, x):
+        shape = x.shape
+        x = x.view(-1).view(shape)
+        return nn.functional.scaled_dot_product_attention(x, x, x)
+
+
 class MHA_single_input(torch.nn.Module):
     EMBED_DIM = 4
     INPUT_SIZES = [2, 1, EMBED_DIM]
@@ -491,3 +502,216 @@ class ModelForGraphBuildingTestWithSplit(ModelForGraphBuildingTest):
         unbinded_processed[0] = self.conv4(y_unbinded[0])
         y = torch.cat(unbinded_processed, axis=0)
         return y
+
+
+class ConvolutionWithNotTensorBiasModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self._conv_w = nn.Parameter(torch.ones((1, 1, 1, 1)))
+
+    def forward(self, x):
+        w = self._conv_w + 10
+        return nn.functional.conv2d(x, w)
+
+
+class ConvolutionWithSeveralOutputs(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = create_conv(1, 1, 1)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x, x + 2
+
+
+class ConvolutionWithAllConstantInputsModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self._conv_w = nn.Parameter(torch.ones((1, 1, 1, 1)))
+        self._conv_i = nn.Parameter(torch.ones((1, 1, 1, 1)))
+
+    def forward(self, x):
+        w = self._conv_w + 10
+        return x + nn.functional.conv2d(self._conv_i, w)
+
+
+class ConvolutionWithMinModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self._conv_w = nn.Parameter(torch.ones((1, 1, 1, 1)))
+
+    def forward(self, x):
+        w = self._conv_w + 10
+        t = nn.functional.conv2d(x, w)
+        return torch.minimum(t, torch.ones_like(t))
+
+
+class MultiBranchesConnectedModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv_a = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1)
+        self.conv_b = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1)
+        self.conv_c = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1)
+        self.bias = torch.tensor([1])
+
+    def forward(self, x):
+        a = self.conv_a(x)
+        b = self.conv_b(a)
+        a += self.bias
+        b += self.bias
+        y = a + b
+        return self.conv_c(y) + self.bias
+
+
+class MultiBranchesConnectedModelWithConcat(torch.nn.Module):
+    INPUT_SIZE = (1, 3, 3, 3)
+
+    def __init__(self):
+        super().__init__()
+        self.conv_a = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1)
+        self.conv_b = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1)
+        self.conv_c = nn.Conv2d(in_channels=9, out_channels=3, kernel_size=1)
+        self.const = nn.Parameter(torch.ones(self.INPUT_SIZE))
+        self.bias = torch.tensor([1])
+
+    def forward(self, x):
+        a = self.conv_a(x)
+        b = self.conv_b(a)
+        a += self.bias
+        b += self.bias
+        y = torch.cat([a, b, self.const], dim=1)
+        return self.conv_c(y) + self.bias
+
+
+class LinearPTQParamsTestModel(nn.Module):
+    INPUT_SIZE = None
+
+    def __init__(self):
+        super().__init__()
+        self.conv1 = create_conv(3, 3, 1)
+        self.bn1 = create_bn(3)
+        self.relu = nn.ReLU()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv2 = create_conv(3, 1, 1)
+        self.bn2 = create_bn(1)
+
+    def forward(self, x):
+        x = self.relu(self.conv1(x))
+        x = self.bn1(x)
+        x = self.avg_pool(x)
+        x = self.relu(self.conv2(x))
+        x = self.bn2(x)
+        return x
+
+
+class ConstantFoldingTestModel(nn.Module):
+    INPUT_SIZE = (1, 3, 3, 3)
+
+    def __init__(self):
+        super().__init__()
+        self.linear_act = nn.Linear(3, 3)
+        self.linear_act.weight.data = 2 * torch.ones((3, 3))
+
+        self.linear_w = nn.Linear(3, 3)
+        self.linear_w.weight.data = 3 * torch.ones((3, 3))
+
+        self.param = nn.Parameter(4 * torch.ones((3, 3)))
+
+    def forward(self, x, dummy_disconnected_input):
+        y = self.linear_w(self.param)
+        # Inplace relu to check
+        # that inplace operations are
+        # removed as well
+        y = torch.relu_(y)
+        y += 10
+        x = self.linear_act(x)
+        return x + y
+
+
+class ScalarCloneTestModel(nn.Module):
+    INPUT_SIZE = (1, 3, 3, 3)
+
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(3, 3)
+
+    def forward(self, x: torch.Tensor):
+        # Emulating part of the torchvision SWIN masks generation impelemntation
+        y = x.new_zeros((3, 3))
+        y[1, :] = 2.0
+        y[2, :] = 3.0
+        return self.linear(x) + y
+
+
+class ShortTransformer(torch.nn.Module):
+    def __init__(self, in_features, num_embeddings, share_weights=False):
+        super().__init__()
+        self.wte = torch.nn.Embedding(num_embeddings, in_features)
+        self.linear = torch.nn.Linear(in_features, in_features)
+        self.lm_head = torch.nn.Linear(in_features, num_embeddings)
+
+        if share_weights:
+            self.lm_head.weight = self.wte.weight
+
+    def forward(self, input_ids):
+        x = self.wte(input_ids)
+        x = self.linear(x)
+        res = self.lm_head(x)
+        return res
+
+
+class YOLO11N_SDPABlock(torch.nn.Module):
+    INPUT_SIZE = (1, 2, 4)
+
+    def __init__(self):
+        super().__init__()
+        self.kqv = nn.Linear(4, 12, bias=False)
+        self.fc = nn.Linear
+
+    def forward(self, x):
+        x = self.kqv(x)
+        k = x[:, :, :4]
+        q = x[:, :, 4:8]
+        v = x[:, :, 8:]
+        kq = torch.matmul(k, torch.transpose(q, 1, 2))
+        kq /= 2**-2
+        kq = torch.softmax(kq, -1)
+        return torch.matmul(torch.transpose(kq, 1, 2), v)
+
+
+class ConcatSDPABlock(torch.nn.Module):
+    Q_INPUT_SHAPE = [2, 10, 6]
+    KV_INPUT_SHAPE = [2, 10, 12]
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, y, z, w):
+        concatenated_input = torch.cat((x, y), dim=-1)
+        query = concatenated_input
+        key = z
+        value = w
+        attn_output = torch.nn.functional.scaled_dot_product_attention(query, key, value)
+
+        return attn_output
+
+
+class SimpleConcatModel(torch.nn.Module):
+    INPUT_SHAPE = (1, 3, 3, 3)
+
+    def __init__(self):
+        super().__init__()
+        self.conv = torch.nn.Conv2d(3, 1, 1, bias=False)
+        self.conv.weight.data = 0.5 * torch.ones_like(self.conv.weight.data)
+
+        self.conv1 = torch.nn.Conv2d(3, 1, 1, bias=False)
+        self.conv1.weight.data = 0.33 * torch.ones_like(self.conv1.weight.data)
+
+        self.conv2 = torch.nn.Conv2d(2, 1, 1, bias=False)
+        self.conv2.weight.data = 0.25 * torch.ones_like(self.conv2.weight.data)
+
+    def forward(self, x):
+        a = self.conv(x)
+        b = self.conv1(x)
+        c = torch.cat([a, b], dim=1)
+        return self.conv2(c)

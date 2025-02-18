@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +15,7 @@ from typing import List
 import pytest
 import torch
 
-from nncf.common.quantization.quantizer_propagation.solver import PropagationStrategy
+from nncf.common.quantization.quantizer_propagation.solver import QuantizerPropagationRule
 from nncf.common.quantization.quantizer_propagation.solver import QuantizerPropagationSolver
 from nncf.torch.hardware.config import PTHWConfig
 from nncf.torch.layers import NNCFConv2d
@@ -50,10 +50,10 @@ class MultiBranchesModelDesc(GeneralModelDesc):
         }
         self._hw_config = False
         self.custom_hw_config_dict = None
-        self.propagation_strategy = PropagationStrategy.MERGE_WITH_SINGLE_FQ_RESULT
+        self.propagation_strategy = QuantizerPropagationRule.MERGE_ALL_IN_ONE
 
     def requant_prop_strategy(self):
-        self.propagation_strategy = PropagationStrategy.MERGE_WITH_POTENTIAL_REQUANTIZATION
+        self.propagation_strategy = QuantizerPropagationRule.MERGE_WITH_POTENTIAL_REQUANTIZATION
         return self
 
     @staticmethod
@@ -98,7 +98,7 @@ class MultiBranchesModelDesc(GeneralModelDesc):
             "target_device": "NPU",
             "config": {
                 "quantization": {
-                    "q4": {"bits": 4, "mode": "symmetric", "granularity": "pertensor"},
+                    "q4": {"bits": 4, "mode": "symmetric", "granularity": "pertensor", "narrow_range": False},
                 }
             },
             "operations": [

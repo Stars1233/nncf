@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -65,7 +65,7 @@ def main(argv):
     for k, v in sd.items():
         new_k = replace_key_fn(k)
         if new_k != k:
-            print("{}\n{}\n\n".format(k, new_k))
+            print(f"{k}\n{new_k}\n\n")
         new_sd[replace_key_fn(k)] = v
     pth["state_dict"] = new_sd
 

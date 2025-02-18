@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Intel Corporation
+# Copyright (c) 2025 Intel Corporation
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -10,19 +10,22 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 
 import nncf
+from nncf.common.logging.logger import nncf_logger
+from nncf.common.utils.backend import is_openvino_available
 from nncf.parameters import CompressWeightsMode
 from nncf.quantization.algorithms.weight_compression.config import WeightCompressionConfig
 from nncf.quantization.fake_quantize import calculate_scale_zero_point
 from nncf.tensor import Tensor
 from nncf.tensor import functions as fns
+from nncf.tensor.definitions import TensorBackend
 from nncf.tensor.definitions import TensorDataType
 
-ReductionAxes = Tuple[int, ...]
+ReductionAxes = Union[int, Tuple[int, ...]]
 
 NF4_QUANTILES = np.array(
     [
@@ -45,26 +48,8 @@ NF4_QUANTILES = np.array(
     ],
     dtype=np.float32,
 )
-CENTER_OF_NF4_QUANTILES = np.array(
-    [
-        -0.8480964004993439,
-        -0.6106329262256622,
-        -0.4599952697753906,
-        -0.33967943489551544,
-        -0.23460740596055984,
-        -0.13791173323988914,
-        -0.045525018125772476,
-        0.03979014977812767,
-        0.1202552504837513,
-        0.2035212516784668,
-        0.2920137718319893,
-        0.3893125355243683,
-        0.5016634166240692,
-        0.6427869200706482,
-        0.8614784181118011,
-    ],
-    dtype=np.float32,
-)
+
+CENTER_OF_NF4_QUANTILES = (NF4_QUANTILES[1:] + NF4_QUANTILES[:-1]) / 2
 
 
 @dataclass
@@ -87,9 +72,9 @@ def reshape_weight_for_grouped_quantization(
     weight: Tensor, reduction_axes: ReductionAxes, group_size: int
 ) -> Tuple[Tensor, int]:
     """
-    Reshapes weight for group-wise quantization and return a new reduction axis for collecting statistics per group
-    dimension. Having weight with shapes [c_out, c_in] and group size = 128, shape of reshaped weight is
-    [c_out, c_in // 128, 128].
+    Reshapes weight for group-wise quantization and return a reduction axis for collecting statistics per group
+    dimension. Having a transposed weight with shapes [c_out, c_in] and group size = 128, shape of reshaped weight is
+    [c_out, c_in // 128, 128], reduction axis = 1 and the returned reduction axis = 2.
 
     :param weight: Weight array to compress.
     :param reduction_axes: Axes, along which to reduce (collect) different statistics (e.g. min, max).
@@ -100,12 +85,12 @@ def reshape_weight_for_grouped_quantization(
     if isinstance(reduction_axes, tuple) and len(reduction_axes) == 1:
         reduction_axes = reduction_axes[0]
     if not isinstance(reduction_axes, int):
-        raise NotImplementedError(
-            f"Group-wise quantization expects a single reduction axis, but given: {reduction_axes}."
-        )
+        msg = f"Group-wise quantization expects a single reduction axis, but given: {reduction_axes}."
+        raise nncf.UnsupportedModelError(msg)
     channel_size = weight.shape[reduction_axes]
     if channel_size % group_size != 0:
-        raise nncf.ValidationError(f"Channel size {channel_size} should be divisible by size of group {group_size}")
+        msg = f"Channel size {channel_size} should be divisible by size of group {group_size}"
+        raise nncf.UnsupportedModelError(msg)
 
     num_groups_per_channel = channel_size // group_size
     shape = list(weight.shape)  # [a1, r, a2] - "r" refers to number of channels along reduction axis
@@ -155,6 +140,29 @@ def calculate_e2m1_scale(weight: Tensor, reduction_axes: ReductionAxes, max_val=
     return scale
 
 
+def calculate_signed_scale(weight: Tensor, reduction_axes: ReductionAxes, num_bits=4) -> Tensor:
+    """
+    Calculates the signed scale for symmetric quantization.
+
+    :param weight: Weight array to compress.
+    :param reduction_axes: Axes along which to reduce (collect) different statistics (e.g., min, max).
+    :param num_bits: number of bits in compression.
+    :return: Scale tensor.
+    """
+    level_high = 2 ** (num_bits - 1)
+
+    w_abs_min = fns.abs(fns.min(weight, axis=reduction_axes, keepdims=True))
+    w_max = fns.max(weight, axis=reduction_axes, keepdims=True)
+
+    scale = fns.where(w_abs_min >= w_max, w_abs_min, -w_max)
+    scale /= level_high
+
+    eps = fns.finfo(scale).eps
+    scale = fns.where(fns.abs(scale) < eps, eps, scale)
+
+    return scale
+
+
 def calculate_normalized_weight(weight: Tensor, scale: Tensor) -> Tensor:
     """
     Normalizes the weight tensor using the provided scale.
@@ -171,34 +179,40 @@ def calculate_normalized_weight(weight: Tensor, scale: Tensor) -> Tensor:
     return weight / scale
 
 
-def calculate_nf4_weight(weight: Tensor, scale: Tensor) -> Tensor:
+def do_nf4_quantization(weight: Tensor, scale: Tensor, is_normalized_weight: bool = False) -> Tensor:
     """
-    Quantizes the weight tensor to NF4 format.
+    Performs NF4 quantization. The floating point values are represented by floating point scale and look-up with
+    16 floating-point values on [-1, 1]. Scale normalizes original values to [-1, 1] interval and look-up table
+    "rounds" or "quantize" to the closest quant.
 
     :param weight: Weight tensor to quantize.
     :param scale: Scale tensor used for normalization.
-    :return: Quantized weight tensor in NF4 format.
+    :param is_normalized_weight: Whether weight was scaled to [-1, 1] interval. Defaults to False.
+    :return: Tensor with floating-point values, where each of them corresponds to 1 out of 16 quants on [-1, 1].
     """
-    norm_weight = calculate_normalized_weight(weight, scale)
-
+    norm_weight = weight if is_normalized_weight else calculate_normalized_weight(weight, scale)
     center_nf4_quantiles = fns.from_numpy(CENTER_OF_NF4_QUANTILES, backend=norm_weight.backend)
-    nf4_quantiles = fns.from_numpy(NF4_QUANTILES, backend=norm_weight.backend)
-
-    index_of_quantile = fns.searchsorted(center_nf4_quantiles, norm_weight)
-    nf4_weight = nf4_quantiles[index_of_quantile]
-
+    indexes = fns.searchsorted(center_nf4_quantiles, norm_weight)
+    nf4_quantiles = fns.from_numpy(NF4_QUANTILES, backend=indexes.backend)
+    nf4_weight = nf4_quantiles[indexes]
     return nf4_weight
 
 
-def decompress_nf4_weight(weight: Tensor, scale: Tensor) -> Tensor:
+def do_nf4_dequantization(nf4_weight: Tensor, scale: Tensor, reduction_axis: int = -1) -> Tensor:
     """
     Decompresses the NF4 quantized weight tensor.
 
-    :param weight: Quantized weight tensor in NF4 format.
+    :param nf4_weight: Tensor with floating-point values,
+        where each of them corresponds to 1 out of 16 quants on [-1, 1].
     :param scale: Scale tensor used for decompression.
+    :param reduction_axis: axis along which weights were reshaped for group quantization and will be reshaped back to
+        original shapes. If equals to -1, weights are not reshaped, assumed not a group quantization. Defaults to -1.
     :return: Decompressed weight tensor.
     """
-    return weight * scale
+    decompressed_weight = nf4_weight * scale
+    if reduction_axis != -1:
+        decompressed_weight = ungroup_weights(decompressed_weight, reduction_axis)
+    return decompressed_weight
 
 
 def calculate_normalized_weight_and_fp4_scale(
@@ -236,24 +250,29 @@ def calculate_normalized_weight_and_fp4_scale(
 
 
 def calculate_integer_quantization_params(
-    weight: Tensor, reduction_axes: ReductionAxes, config: WeightCompressionConfig
+    weight: Tensor,
+    reduction_axes: ReductionAxes,
+    config: WeightCompressionConfig,
 ) -> Tuple[Tensor, Tensor]:
     """
-    Calculates the scale and zero point for integer quantization.
+    Calculates the scale and zero point for uniform quantization (INT4, INT8), when the range of values is divided into
+    equal intervals, and each interval is assigned a quant.
 
     :param weight: Weight array to compress.
     :param reduction_axes: Axes, along which to reduce (collect) different statistics (e.g. min, max).
     :param config: Weight compression configuration.
     :return: Scale and zero point tensors.
     """
-    mode = config.mode
-    assert config.is_integer(), "The function supports integer quantization only"
+    if not config.is_integer:
+        msg = "The function supports integer quantization only"
+        raise nncf.InternalError(msg)
+
     num_bits = config.num_bits
 
     if weight.dtype != TensorDataType.float32:
         weight = weight.astype(TensorDataType.float32)
 
-    if mode in [CompressWeightsMode.INT8_ASYM, CompressWeightsMode.INT4_ASYM]:
+    if config.is_asym_mode:
         level_low = 0
         level_high = 2**num_bits - 1
         min_values = fns.min(weight, axis=reduction_axes, keepdims=True)  # [a1, r, a2] -> [a1, 1, a2]
@@ -263,12 +282,7 @@ def calculate_integer_quantization_params(
         )
         return scale, zero_point
 
-    level_high = 2 ** (num_bits - 1) - 1
-    scale = fns.max(fns.abs(weight), axis=reduction_axes, keepdims=True)  # [a1, r//gs, 1, a2]
-    scale /= level_high
-    eps = fns.finfo(scale).eps
-    # NOTE: adding machine epsilon to avoid division by zero
-    scale = fns.where(fns.abs(scale) < eps, eps, scale)
+    scale = calculate_signed_scale(weight, reduction_axes, num_bits)
     return scale, None
 
 
@@ -277,7 +291,6 @@ def calculate_quantized_weight(
     config: WeightCompressionConfig,
     scale: Tensor,
     zero_point: Optional[Tensor] = None,
-    invert_scale=False,
 ) -> Tensor:
     """
     Quantizes the weight tensor using the provided scale and zero point.
@@ -286,7 +299,6 @@ def calculate_quantized_weight(
     :param config: Weight compression configuration.
     :param scale: Scale tensor used for quantization.
     :param zero_point: Zero point tensor used for quantization.
-    :param invert_scale: applies inversion for scale and then multiply by weights instead of division.
     :return: Quantized weight tensor of uint8 or int8 type.
     """
     if weight.dtype != TensorDataType.float32:
@@ -295,80 +307,24 @@ def calculate_quantized_weight(
         scale = scale.astype(TensorDataType.float32)
 
     num_bits = config.num_bits
-    asym_quant = config.mode in [CompressWeightsMode.INT8_ASYM, CompressWeightsMode.INT4_ASYM]
+    asym_quant = config.is_asym_mode
     dtype = TensorDataType.uint8 if asym_quant else TensorDataType.int8
     level_low = 0 if asym_quant else -(2 ** (num_bits - 1))
     level_high = 2**num_bits - 1 if asym_quant else 2 ** (num_bits - 1) - 1
 
-    if invert_scale:
-        scale = fns.power(scale, -1)
-        compressed_weights = weight * scale
-    else:
-        compressed_weights = weight / scale
+    compressed_weights = weight / scale
     if zero_point is not None:
         compressed_weights += zero_point.astype(weight.dtype)
     compressed_weights = fns.round(compressed_weights)
     compressed_weights = fns.clip(compressed_weights, level_low, level_high).astype(dtype)
+
     return compressed_weights
 
 
-def do_integer_quantization(
+def get_integer_quantization_error(
     weight: Tensor,
     reduction_axes: ReductionAxes,
     config: WeightCompressionConfig,
-    precomputed_scale: Tensor = None,
-    precomputed_zero_point: Tensor = None,
-    invert_scale=False,
-) -> Tuple[Tensor, Tensor, Tensor]:
-    """
-    The method quantizes the given weights to integer data type in accordance with the compression config.
-    The config defines a quantization mode:
-        INT8_SYM mode refers to signed int8 symmetric weight compression without zero point -
-            quantization to [-128, 127] range.
-        INT8_ASYM mode refers to unsigned int8 asymmetric weight compression with a typical non-fixed zero-point -
-            quantization to [0, 255] range.
-        INT4_ASYM mode refers to unsigned int4 asymmetric weight compression with a typical non-fixed zero-point -
-            quantization to [0, 15] range.
-        INT4_SYM mode refers to signed int4 symmetric weight compression without zero point -
-            quantization to [-8, 7] range.
-        NF4 or E2M1 mode requires a dedicated procedure and it is not supported in this method.
-    One of the parameter of compression config is a group size. Quantization is per-channel, if group size equals to -1,
-    otherwise it's per-group, i.e. group size number of weights in the channel dimension share quantization parameters
-    (scales).
-
-    :param weight: Weight array to compress.
-    :param reduction_axes: Axes, along which to reduce (collect) different statistics (e.g. min, max).
-    :param config: Information on how to compress (quantize) a specific weight.
-    :param precomputed_scale: Precomputed scale.
-    :param precomputed_zero_point: Precomputed zero point.
-    :param invert_scale: applies inversion for scale and then multiply by weights instead of division.
-        Need as reference implementation for OV.
-    :return: The compressed weights tensor of uint8 (asymmetric mode) or int8 (symmetric mode) type,
-        scale tensor of float32 type and zero point tensor of int32 type that was used for its quantization.
-    """
-    assert config.is_integer(), "The function supports integer quantization only"
-    group_size = config.group_size
-
-    if weight.dtype != TensorDataType.float32:
-        weight = weight.astype(TensorDataType.float32)
-
-    if group_size != -1:
-        # weights are reshaped from [a1, r, a2] to [a1, r//gs, gs, a2]
-        weight, reduction_axes = reshape_weight_for_grouped_quantization(weight, reduction_axes, group_size)
-
-    if precomputed_zero_point is None or precomputed_zero_point is None:
-        scale, zero_point = calculate_integer_quantization_params(weight, reduction_axes, config)
-    if precomputed_scale is not None:
-        scale = precomputed_scale
-    if precomputed_zero_point is not None:
-        zero_point = precomputed_zero_point
-
-    compressed_weights = calculate_quantized_weight(weight, config, scale, zero_point, invert_scale)
-    return compressed_weights, scale, zero_point
-
-
-def get_integer_quantization_error(
-    weight: Tensor, reduction_axes: ReductionAxes, config: WeightCompressionConfig
 ) -> float:
     """
     Calculates a quantity characterizing the difference between floating point weights and fake quantized
@@ -384,8 +340,7 @@ def get_integer_quantization_error(
     if weight.dtype != TensorDataType.float32:
         weight = weight.astype(TensorDataType.float32)
 
-    compressed_weights, scale, zero_point = do_integer_quantization(weight, reduction_axes, config)
-    decompressed_weight = do_dequantization(compressed_weights, scale, zero_point)
+    decompressed_weight = quantize_dequantize_weight(weight, config, reduction_axes)
 
     decompressed_weight = decompressed_weight.reshape(orig_shape)
     diff = (decompressed_weight - weight) ** 2
@@ -411,19 +366,40 @@ def compress_weight(
     :param precomputed_zero_point: Precomputed zero point.
     :return: The compressed weight and decompression parameters as instance of CompressedWeight
     """
-    if not config.is_integer():
+    if not config.is_integer:
+        if weight.backend == TensorBackend.ov:
+            weight = weight.as_numpy_tensor()
+
         compressed_weight, scale = calculate_normalized_weight_and_fp4_scale(
             weight, reduction_axes, config.group_size, precomputed_scale, config.mode
         )
         return CompressedWeight(compressed_weight, scale)
-    compressed_weight, scale, zero_point = do_integer_quantization(
-        weight, reduction_axes, config, precomputed_scale, precomputed_zero_point
+    compressed_weight, scale, zero_point = do_int_quantization(
+        weight, config, reduction_axes, precomputed_scale, precomputed_zero_point
     )
 
     return CompressedWeight(compressed_weight, scale, zero_point)
 
 
-def do_dequantization(
+def ungroup_weights(weights: Tensor, reduction_axis: int) -> Tensor:
+    """
+    Reshapes weights used for group quantization back to original shape.
+
+    :param weights: The weight to reshape.
+    :param reduction_axis: The axis, along which weights were reshaped for group quantization and will be reshaped back
+        to original shapes. If equals to -1, weights are not reshaped, assumed not a group quantization. Default to -1.
+    :return: Reshaped weight.
+    """
+    shape = list(weights.shape)  # [a1, r, a2] - "r" refers to number of channels along reduction axis
+    shape[reduction_axis] = shape[reduction_axis] * shape[reduction_axis + 1]
+    shape[reduction_axis + 1] = 1
+    reshaped_weight = weights.reshape(shape)
+    reshaped_weight = fns.squeeze(reshaped_weight)
+    weights = reshaped_weight
+    return weights
+
+
+def do_int_dequantization(
     compressed_weights: Tensor, scale: Tensor, zero_point: Optional[Tensor] = None, reduction_axis: int = -1
 ) -> Tensor:
     """
@@ -433,18 +409,134 @@ def do_dequantization(
     :param compressed_weights: compressed weights.
     :param scale: scale in compression/quantization.
     :param zero_point: zero point in compression/quantization.
-    :param reduction_axis: axis for return back for group compression.
+    :param reduction_axis: axis along which weights were reshaped for group quantization and will be reshaped back to
+        original shapes. If equals to -1: weights are not reshaped, assumed not a group quantization. Default to -1.
     :return: dequantized/decompressed weights.
     """
-    decompressed_weight = compressed_weights - zero_point if zero_point is not None else compressed_weights
+    decompressed_weight = (
+        compressed_weights.astype(TensorDataType.int32) - zero_point if zero_point is not None else compressed_weights
+    )
     decompressed_weight = decompressed_weight.astype(scale.dtype) * scale
 
     if reduction_axis > -1:
-        shape = list(decompressed_weight.shape)  # [a1, r, a2] - "r" refers to number of channels along reduction axis
-        shape[reduction_axis] = shape[reduction_axis] * shape[reduction_axis + 1]
-        shape[reduction_axis + 1] = 1
-        reshaped_weight = decompressed_weight.reshape(shape)
-        reshaped_weight = fns.squeeze(reshaped_weight)
-        decompressed_weight = reshaped_weight
+        decompressed_weight = ungroup_weights(decompressed_weight, reduction_axis)
 
     return decompressed_weight
+
+
+def do_int_quantization(
+    weight: Tensor,
+    config: WeightCompressionConfig,
+    reduction_axes: Optional[ReductionAxes] = None,
+    precomputed_scale: Tensor = None,
+    precomputed_zero_point: Tensor = None,
+    **kwargs,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    """
+    Performs integer quantization on the given weight tensor.
+
+    :param weight: The weight tensor to quantize.
+    :param config: The weight compression configuration.
+    :param reduction_axes: Axes along which to reduce (collect) statistics (e.g., min, max). Not required if
+        precomputed scale (and zero point) are provided.
+    :param precomputed_scale: Optional precomputed scale tensor.
+    :param precomputed_zero_point: Optional precomputed zero point tensor.
+    :return: A tuple containing the compressed weights, scale, and zero point tensors.
+    """
+    if not config.is_integer:
+        msg = "The function supports integer quantization only"
+        raise nncf.InternalError(msg)
+    if config.is_asym_mode and (precomputed_scale is None) != (precomputed_zero_point is None):
+        msg = (
+            "If precomputed quantization parameters are provided, both scale and zero point are required "
+            "for asymmetric quantization."
+        )
+        raise ValueError(msg)
+
+    # When reduction axes are not provided, assuming that the weights are already reshaped
+    if config.group_size != -1 and reduction_axes is not None:
+        # weights are reshaped from [a1, r, a2] to [a1, r//gs, gs, a2]
+        weight, reduction_axes = reshape_weight_for_grouped_quantization(weight, reduction_axes, config.group_size)
+
+    # Optimized implementation
+    if is_openvino_available() and weight.backend in [TensorBackend.ov, TensorBackend.numpy]:
+        from nncf.openvino.optimized_functions import do_int_quantization as do_int_quantization_ov
+
+        return do_int_quantization_ov(
+            weight, config, reduction_axes, precomputed_scale, precomputed_zero_point, **kwargs
+        )
+    if not is_openvino_available() and weight.backend in [TensorBackend.ov, TensorBackend.numpy]:
+        nncf_logger.info_once(
+            "OpenVINO optimizations are disabled. Install OpenVINO to enable them and improve the performance."
+        )
+
+    # Reference implementation
+    if weight.backend == TensorBackend.ov:
+        weight = weight.as_numpy_tensor()
+    if weight.dtype != TensorDataType.float32:
+        weight = weight.astype(TensorDataType.float32)
+
+    scale, zero_point = None, None
+    if precomputed_scale is None or (config.is_asym_mode and precomputed_zero_point is None):
+        if reduction_axes is None:
+            msg = "Reduction axes are required for computing the scale and (zero point) vectors."
+            raise ValueError(msg)
+        scale, zero_point = calculate_integer_quantization_params(weight, reduction_axes, config)
+    if precomputed_scale is not None:
+        scale = precomputed_scale
+    if precomputed_zero_point is not None:
+        zero_point = precomputed_zero_point
+
+    compressed_weights = calculate_quantized_weight(weight, config, scale, zero_point)
+    return compressed_weights, scale, zero_point
+
+
+def quantize_dequantize_weight(
+    weight: Tensor,
+    config: WeightCompressionConfig,
+    reduction_axes: Optional[ReductionAxes] = None,
+    precomputed_scale: Optional[Tensor] = None,
+    precomputed_zero_point: Optional[Tensor] = None,
+    return_compressed_weight: Optional[bool] = False,
+    **kwargs,
+) -> Union[Tensor, Tuple[Tensor, Tensor, Tensor, Tensor]]:
+    """
+    First quantizes the given weight tensor and then dequantizes it back to obtain float32 values.
+    :param weight: The weight tensor to quantize-dequantize.
+    :param config: Compression configuration.
+    :param reduction_axes: Axes along which to reduce (collect) statistics (e.g., min, max). Not required if
+        precomputed scale (and zero point) are provided.
+    :param precomputed_scale: Optional precomputed scale tensor.
+    :param precomputed_zero_point: Optional precomputed zero point tensor.
+    :param return_compressed_weight: If True, besides decompressed weight will also return compressed weight, scale,
+        (and zero point).
+    :return: Dequantized weight tensor or a tuple containing the decompressed weight, compressed weight, scale,
+        (and zero point).
+    """
+    # Optimized implementation
+    if is_openvino_available() and weight.backend in [TensorBackend.ov, TensorBackend.numpy]:
+        from nncf.openvino.optimized_functions import quantize_dequantize_weight as quantize_dequantize_weight_ov
+
+        return quantize_dequantize_weight_ov(
+            weight,
+            config,
+            reduction_axes,
+            precomputed_scale,
+            precomputed_zero_point,
+            return_compressed_weight,
+            **kwargs,
+        )
+    if not is_openvino_available() and weight.backend in [TensorBackend.ov, TensorBackend.numpy]:
+        nncf_logger.info_once(
+            "OpenVINO optimizations are disabled. Install OpenVINO to enable them and improve the performance."
+        )
+
+    # Reference implementation
+    compressed_weight, scale, zero_point = do_int_quantization(
+        weight, config, reduction_axes, precomputed_scale, precomputed_zero_point
+    )
+    decompressed_weight = do_int_dequantization(compressed_weight, scale, zero_point)
+    if return_compressed_weight:
+        return decompressed_weight, compressed_weight, scale, zero_point
+    else:
+        return decompressed_weight
